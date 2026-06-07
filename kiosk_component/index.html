@@ -44,8 +44,8 @@
             shapes: [{ type: 'line', x0: 25, x1: 25, y0: -0.1, y1: 1.1, line: { color: '#10b981', width: 3 } }]
         };
         
-        Plotly.newPlot('crisp-chart', [{ x: x_vals, y: y_crisp, type: 'scatter', line: {color: '#ef4444', width: 2, dash: 'dash'} }], layoutCrisp, {displayModeBar: false});
-        Plotly.newPlot('fuzzy-chart', [{ x: x_vals, y: y_fuzzy, type: 'scatter', line: {color: '#3b82f6', width: 3, shape: 'spline'} }], layoutFuzzy, {displayModeBar: false});
+        Plotly.newPlot('crisp-chart', [{ x: x_vals, y: y_crisp, type: 'scatter', line: {color: '#ef4444', width: 2, dash: 'dash'} }], layoutCrisp, {displayModeBar: false, responsive: true});
+        Plotly.newPlot('fuzzy-chart', [{ x: x_vals, y: y_fuzzy, type: 'scatter', line: {color: '#3b82f6', width: 3, shape: 'spline'} }], layoutFuzzy, {displayModeBar: false, responsive: true});
         updateDemo();
     }
 
@@ -438,7 +438,63 @@
                 max-height: 400px;
             }
         }
+    
+        /* Mobile Responsiveness */
+        @media screen and (max-width: 768px) {
+            .step-wrapper {
+                padding: 20px 15px !important;
+            }
+            .header {
+                padding: 15px 20px !important;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .header h1 {
+                font-size: 24px !important;
+            }
+            .progress-bar {
+                transform: scale(0.8);
+            }
+            .control-card, .dash-card {
+                padding: 20px 15px !important;
+                margin-bottom: 15px !important;
+            }
+            h2 { font-size: 28px !important; }
+            h3 { font-size: 20px !important; }
+            .score-value {
+                font-size: 50px !important;
+            }
+            .dashboard-grid {
+                grid-template-columns: 1fr !important;
+                gap: 15px !important;
+            }
+            .step {
+                top: 20px !important;
+                left: 15px !important;
+                right: 15px !important;
+            }
+            /* Make two-column grid inside Step 1 become single column */
+            #step1 > div {
+                grid-template-columns: 1fr !important;
+                gap: 30px !important;
+            }
+            .control-label { font-size: 24px !important; }
+            .btn-icon { width: 45px !important; height: 45px !important; font-size: 24px !important; }
+            input[type=number], input[type=text] { font-size: 20px !important; height: 45px !important; }
+            .footer {
+                padding: 15px 20px !important;
+            }
+            .btn {
+                padding: 12px 20px !important;
+                font-size: 16px !important;
+            }
+            /* Fix filters row */
+            .filter-btn { padding: 8px 12px !important; font-size: 14px !important; margin-bottom: 5px; }
+            .dashboard-grid > div:nth-child(2) table { font-size: 14px; }
+            .dashboard-grid > div:nth-child(2) th, .dashboard-grid > div:nth-child(2) td { padding: 10px; }
+        }
     </style>
+
 </head>
 <body>
 
@@ -1246,7 +1302,7 @@
             
             paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', margin: {l: 40, r: 40, t: 40, b: 40} 
         };
-        Plotly.newPlot('radar-chart', data, layout, {displayModeBar: false});
+        Plotly.newPlot('radar-chart', data, layout, {displayModeBar: false, responsive: true});
     }
 
     let demoChartInit = false;
@@ -1288,8 +1344,8 @@
             shapes: [{ type: 'line', x0: 25, x1: 25, y0: -0.1, y1: 1.1, line: { color: '#10b981', width: 3 } }]
         };
         
-        Plotly.newPlot('crisp-chart', [{ x: x_vals, y: y_crisp, type: 'scatter', line: {color: '#ef4444', width: 2, dash: 'dash'} }], layoutCrisp, {displayModeBar: false});
-        Plotly.newPlot('fuzzy-chart', [{ x: x_vals, y: y_fuzzy, type: 'scatter', line: {color: '#3b82f6', width: 3, shape: 'spline'} }], layoutFuzzy, {displayModeBar: false});
+        Plotly.newPlot('crisp-chart', [{ x: x_vals, y: y_crisp, type: 'scatter', line: {color: '#ef4444', width: 2, dash: 'dash'} }], layoutCrisp, {displayModeBar: false, responsive: true});
+        Plotly.newPlot('fuzzy-chart', [{ x: x_vals, y: y_fuzzy, type: 'scatter', line: {color: '#3b82f6', width: 3, shape: 'spline'} }], layoutFuzzy, {displayModeBar: false, responsive: true});
         updateDemo();
     }
 
