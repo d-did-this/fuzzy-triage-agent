@@ -20,6 +20,17 @@ st.markdown("""
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
 
+    /* Hide Streamlit Cloud 'Manage App' watermark */
+    [data-testid="manage-app-button"] {display: none !important;}
+    
+    /* --- BUTTON SAFE ZONES --- */
+    .stButton {
+        margin-top: 15px;
+        margin-bottom: 40px; /* Safe zone for mobile swiping */
+        display: flex;
+        justify-content: center;
+    }
+
     /* Force iframe to cover the entire viewport without scrollbars */
     iframe {
         width: 100vw !important;
