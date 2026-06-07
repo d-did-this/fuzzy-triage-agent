@@ -23,6 +23,22 @@ st.markdown("""
     /* Hide Streamlit Cloud 'Manage App' watermark */
     [data-testid="manage-app-button"] {display: none !important;}
     
+    /* Target the App Creator Avatar explicitly */
+    [data-testid="appCreatorAvatar"] { 
+        display: none !important; 
+    }
+    
+    /* Target the obfuscated Streamlit Logo SVG wrapper */
+    div[class^="_link_"] { 
+        display: none !important; 
+    }
+    
+    /* Target the parent container of the new profile badge */
+    div[class^="_profileContainer_"], 
+    div[class^="_container_"] { 
+        display: none !important; 
+    }
+    
     /* --- BUTTON SAFE ZONES --- */
     .stButton {
         margin-top: 15px;
