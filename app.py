@@ -1,7 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import fuzzy_engine
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from agentic_tools import check_symptoms, check_drug_safety
 
 # 1. Page Config
@@ -16,13 +17,11 @@ except Exception:
 if not gemini_api_key:
     st.warning("GEMINI_API_KEY is missing from st.secrets. Agent will not work.")
 else:
-    genai.configure(api_key=gemini_api_key)
-
-try:
-    agent_model = genai.GenerativeModel('gemini-1.5-flash', tools=[check_symptoms, check_drug_safety])
-except Exception as e:
-    agent_model = None
-    st.warning(f"Failed to initialize Gemini model: {e}")
+    try:
+        gemini_client = genai.Client(api_key=gemini_api_key)
+    except Exception as e:
+        gemini_client = None
+        st.warning(f"Failed to initialize Gemini client: {e}")
 
 # 2. Force Streamlit out of the way (Full-screen iframe injection)
 st.markdown("""
@@ -34,29 +33,8 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Hide header/footer */
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-
-    /* Hide Streamlit Cloud 'Manage App' watermark */
-    [data-testid="manage-app-button"] {display: none !important;}
-    
-    /* Target the App Creator Avatar explicitly */
-    [data-testid="appCreatorAvatar"] { 
-        display: none !important; 
-    }
-    
-    /* Target the obfuscated Streamlit Logo SVG wrapper */
-    div[class^="_link_"] { 
-        display: none !important; 
-    }
-    
-    /* Target the parent container of the new profile badge */
-    div[class^="_profileContainer_"], 
-    div[class^="_container_"] { 
-        display: none !important; 
-    }
+    /* Hide the huge Streamlit header block so it doesn't cover the app */
+    header { display: none !important; }
     
     /* --- BUTTON SAFE ZONES --- */
     .stButton {
@@ -66,12 +44,15 @@ st.markdown("""
         justify-content: center;
     }
 
-    /* Force iframe to cover the entire viewport without scrollbars */
+    /* Force the kiosk iframe to cover the entire viewport without scrollbars */
     iframe {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
         display: block;
+        position: fixed;
+        top: 0; left: 0;
+        z-index: 1;
     }
     
     /* Prevent Streamlit background bleeding */
@@ -104,67 +85,91 @@ component_value = kiosk_ui(score=st.session_state.score, key="kiosk")
 if component_value:
     # Check if the user just clicked Generate and sent us new data
     if st.session_state.last_data != component_value:
+        action = component_value.get("action")
         
-        # Process the 8 parameters through the mathematical Fuzzy Engine
-        try:
-            new_score = fuzzy_engine.assess_patient(component_value)
-            st.session_state.score = new_score
-        except Exception as e:
-            st.session_state.score = -1
-            print(f"Error calculating score: {e}")
+        if action == "open_chat":
+            st.session_state.show_chat = True
+            st.session_state.chat_opened = False # flag to trigger JS open
+            st.session_state.last_data = component_value
+            st.rerun()
+        else:
+            # Process the 8 parameters through the mathematical Fuzzy Engine
+            try:
+                # filter out 'action' key
+                lab_data = {k: v for k, v in component_value.items() if k != "action"}
+                new_score = fuzzy_engine.assess_patient(lab_data)
+                st.session_state.score = new_score
+            except Exception as e:
+                st.session_state.score = -1
+                print(f"Error calculating score: {e}")
+                
+            st.session_state.last_data = component_value
+            st.rerun()
+
+# 7. Agentic Chatbot Interface (Popup)
+@st.dialog("💬 Chat with AI Nurse", width="large")
+def chat_popup():
+    col1, col2 = st.columns([8, 2])
+    with col2:
+        if st.button("❌ Close Chat", use_container_width=True):
+            st.session_state.show_chat = False
+            st.rerun()
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
+    messages_container = st.container(height=600)
+    
+    for message in st.session_state.messages:
+        with messages_container.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
+        with messages_container.chat_message("user"):
+            st.markdown(prompt)
+        
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        current_egfr = "Unknown"
+        current_creat = "Unknown"
+        current_tier = "Unknown"
+        
+        if st.session_state.last_data:
+            current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
+            current_creat = st.session_state.last_data.get('creat', 'Unknown')
+        
+        if st.session_state.score is not None and st.session_state.score >= 0:
+            score = st.session_state.score
+            if score < 40: current_tier = "Normal"
+            elif score < 60: current_tier = "Mild"
+            elif score < 80: current_tier = "Moderate"
+            else: current_tier = "Severe"
             
-        st.session_state.last_data = component_value
+        system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
         
-        # Rerun Streamlit. This forces `kiosk_ui()` to be called again on line 42
-        # which instantly drops the newly calculated score right into the Javascript listener!
+        full_prompt = system_context + prompt
+        
+        with messages_container.chat_message("assistant"):
+            if 'gemini_client' in globals() and gemini_client is not None:
+                try:
+                    if "gemini_chat" not in st.session_state:
+                        st.session_state.gemini_chat = gemini_client.chats.create(
+                            model="gemini-1.5-flash",
+                            config=types.GenerateContentConfig(
+                                tools=[check_symptoms, check_drug_safety]
+                            )
+                        )
+                    
+                    response = st.session_state.gemini_chat.send_message(full_prompt)
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                except Exception as e:
+                    st.error(f"Error communicating with agent: {e}")
+            else:
+                st.warning("Gemini client is not configured.")
+        
+        # Rerun to update the dialog with the new message
         st.rerun()
 
-# 7. Agentic Chatbot Interface
-st.markdown("### Educational Triage Nurse")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    current_egfr = "Unknown"
-    current_creat = "Unknown"
-    current_tier = "Unknown"
-    
-    if st.session_state.last_data:
-        current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
-        current_creat = st.session_state.last_data.get('creat', 'Unknown')
-    
-    if st.session_state.score is not None and st.session_state.score >= 0:
-        score = st.session_state.score
-        if score < 40: current_tier = "Normal"
-        elif score < 60: current_tier = "Mild"
-        elif score < 80: current_tier = "Moderate"
-        else: current_tier = "Severe"
-        
-    system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
-    
-    full_prompt = system_context + prompt
-    
-    with st.chat_message("assistant"):
-        if 'agent_model' in locals() and agent_model is not None:
-            try:
-                if "gemini_chat" not in st.session_state:
-                    st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
-                
-                response = st.session_state.gemini_chat.send_message(full_prompt)
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Error communicating with agent: {e}")
-        else:
-            st.warning("Gemini model is not configured.")
-
+if st.session_state.get("show_chat", False):
+    chat_popup()

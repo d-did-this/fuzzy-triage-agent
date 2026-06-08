@@ -4,4 +4,5 @@ numpy
 scikit-fuzzy
 plotly
 networkx
-google-generativeai
+scipy
+google-genai

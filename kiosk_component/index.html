@@ -877,6 +877,9 @@
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                             Redo Assessment
                         </button>
+                        <button class="btn btn-generate" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #a855f7, #9333ea); box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3);" onclick="openChat()">
+                            💬 Chat with AI Nurse
+                        </button>
                         <button class="btn btn-generate" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="printReport()">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             Download Report
@@ -1040,10 +1043,26 @@
             mcv: parseFloat(document.getElementById('mcv_text').value),
             rdw: parseFloat(document.getElementById('rdw_text').value),
             egfr: parseFloat(document.getElementById('egfr_text').value),
-            creat: parseFloat(document.getElementById('creat_text').value)
+            creat: parseFloat(document.getElementById('creat_text').value),
+            action: "generate"
         };
         
         isWaitingForScore = true;
+        Streamlit.setComponentValue(data);
+    }
+
+    function openChat() {
+        let data = {
+            hb: parseFloat(document.getElementById('hb_text').value),
+            wbc: parseFloat(document.getElementById('wbc_text').value),
+            plt: parseFloat(document.getElementById('plt_text').value),
+            neu: parseFloat(document.getElementById('neu_text').value),
+            mcv: parseFloat(document.getElementById('mcv_text').value),
+            rdw: parseFloat(document.getElementById('rdw_text').value),
+            egfr: parseFloat(document.getElementById('egfr_text').value),
+            creat: parseFloat(document.getElementById('creat_text').value),
+            action: "open_chat"
+        };
         Streamlit.setComponentValue(data);
     }
 
