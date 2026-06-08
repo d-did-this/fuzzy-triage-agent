@@ -57,6 +57,29 @@ st.markdown("""
         z-index: 1;
     }
     
+    /* Unhide the Toggle */
+    [data-testid="collapsedControl"] { display: flex !important; z-index: 999999 !important; }
+    
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        z-index: 99999 !important;
+        box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+        background-color: #0b0f19 !important;
+    }
+
+    /* Chat Bubble Styling */
+    [data-testid="stChatMessage"] {
+        background-color: #1f2937;
+        border-radius: 15px;
+        padding: 10px;
+        margin-bottom: 10px;
+        border: none;
+    }
+    
+    [data-testid="stChatMessage"]:nth-child(even) {
+        background-color: #374151; /* distinct background for user/assistant */
+    }
+    
     /* Prevent Streamlit background bleeding */
     .stApp {
         background-color: #0b0f19;
@@ -95,6 +118,7 @@ if component_value:
             st.session_state.show_chat = True
             st.session_state.chat_opened = False # flag to trigger JS open
             st.session_state.last_data = component_value
+            st.toast("👈 Open the sidebar on the left to chat with the AI Nurse!")
             st.rerun()
         else:
             # Process the 8 parameters through the mathematical Fuzzy Engine
@@ -153,14 +177,9 @@ GROQ_TOOLS = [
     }
 ]
 
-@st.dialog("💬 Chat with AI Nurse", width="large")
-def chat_popup():
-    col1, col2 = st.columns([8, 2])
-    with col2:
-        if st.button("❌ Close Chat", use_container_width=True):
-            st.session_state.show_chat = False
-            st.rerun()
-
+with st.sidebar:
+    st.title("🩺 AI Triage Nurse")
+    
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
@@ -259,6 +278,3 @@ def chat_popup():
                     st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
             else:
                 st.warning("Groq client is not configured.")
-
-if st.session_state.get("show_chat", False):
-    chat_popup()
