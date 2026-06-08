@@ -52,8 +52,7 @@ st.markdown("""
     }
     
     /* Target the parent container of the new profile badge */
-    div[class^="_profileContainer_"], 
-    div[class^="_container_"] { 
+    div[class^="_profileContainer_"] { 
         display: none !important; 
     }
     
@@ -66,7 +65,7 @@ st.markdown("""
     }
 
     /* Force the specific kiosk iframe to cover the entire viewport without scrollbars */
-    iframe[title="kiosk"] {
+    iframe[title="kiosk_ui"] {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
