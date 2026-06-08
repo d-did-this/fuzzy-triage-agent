@@ -165,11 +165,10 @@ def chat_popup():
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
+                    # Optionally append the error to messages so it persists on next runs
+                    st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
             else:
                 st.warning("Gemini client is not configured.")
-        
-        # Rerun to update the dialog with the new message
-        st.rerun()
 
 if st.session_state.get("show_chat", False):
     chat_popup()
