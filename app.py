@@ -2,32 +2,28 @@ import streamlit as st
 import streamlit.components.v1 as components
 import fuzzy_engine
 import urllib.parse
-import warnings
-
-# Suppress the deprecation warning for the old SDK so it doesn't clutter the logs
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-import google.generativeai as genai
+import json
+from groq import Groq
 from agentic_tools import check_symptoms, check_drug_safety
 
 # 1. Page Config
 st.set_page_config(page_title="HealthAgent Pro", layout="wide", initial_sidebar_state="collapsed")
 
-# Setup Gemini Agent
+# Setup Groq Agent
 try:
-    gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+    groq_api_key = st.secrets.get("GROQ_API_KEY", "")
 except Exception:
-    gemini_api_key = ""
+    groq_api_key = ""
 
-if not gemini_api_key:
-    st.warning("GEMINI_API_KEY is missing from st.secrets. Agent will not work.")
+if not groq_api_key:
+    st.warning("GROQ_API_KEY is missing from st.secrets. Agent will not work.")
+    groq_client = None
 else:
     try:
-        genai.configure(api_key=gemini_api_key)
-        # Verify initialization by listing models (optional, we just assume it works)
-        gemini_client = True 
+        groq_client = Groq(api_key=groq_api_key)
     except Exception as e:
-        gemini_client = None
-        st.warning(f"Failed to initialize Gemini client: {e}")
+        groq_client = None
+        st.warning(f"Failed to initialize Groq client: {e}")
 
 # 2. Force Streamlit out of the way (Full-screen iframe injection)
 st.markdown("""
@@ -113,6 +109,48 @@ if component_value:
             st.rerun()
 
 # 7. Agentic Chatbot Interface (Popup)
+# Define Groq Tools Schema
+GROQ_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "check_symptoms",
+            "description": "Returns common symptoms based on eGFR thresholds.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "egfr_value": {
+                        "type": "number",
+                        "description": "The eGFR value of the patient"
+                    }
+                },
+                "required": ["egfr_value"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_drug_safety",
+            "description": "Returns warnings if nephrotoxic drugs are mentioned when eGFR < 60.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "medication_name": {
+                        "type": "string",
+                        "description": "The name of the medication to check"
+                    },
+                    "egfr_value": {
+                        "type": "number",
+                        "description": "The eGFR value of the patient"
+                    }
+                },
+                "required": ["medication_name", "egfr_value"]
+            }
+        }
+    }
+]
+
 @st.dialog("💬 Chat with AI Nurse", width="large")
 def chat_popup():
     col1, col2 = st.columns([8, 2])
@@ -123,6 +161,11 @@ def chat_popup():
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    
+    if "groq_chat_history" not in st.session_state:
+        st.session_state.groq_chat_history = [
+            {"role": "system", "content": "You are a proactive educational triage nurse. You must use the tools provided to check symptoms and drug safety."}
+        ]
         
     messages_container = st.container(height=600)
     
@@ -154,27 +197,69 @@ def chat_popup():
         system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
         
         full_prompt = system_context + prompt
+        st.session_state.groq_chat_history.append({"role": "user", "content": full_prompt})
         
         with messages_container.chat_message("assistant"):
-            if 'gemini_client' in globals() and gemini_client is not None:
+            if groq_client is not None:
                 try:
-                    if "gemini_chat" not in st.session_state:
-                        # Use the old robust SDK syntax
-                        model = genai.GenerativeModel(
-                            model_name="gemini-1.5-flash",
-                            tools=[check_symptoms, check_drug_safety]
-                        )
-                        st.session_state.gemini_chat = model.start_chat()
+                    response = groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=st.session_state.groq_chat_history,
+                        tools=GROQ_TOOLS,
+                        tool_choice="auto"
+                    )
                     
-                    response = st.session_state.gemini_chat.send_message(full_prompt)
-                    st.markdown(response.text)
-                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    response_message = response.choices[0].message
+                    
+                    # Convert to dict for safety in session state
+                    assistant_msg = {"role": "assistant"}
+                    if response_message.content:
+                        assistant_msg["content"] = response_message.content
+                    if response_message.tool_calls:
+                        assistant_msg["tool_calls"] = [tc.model_dump() for tc in response_message.tool_calls]
+                        
+                    st.session_state.groq_chat_history.append(assistant_msg)
+                    
+                    if response_message.tool_calls:
+                        for tool_call in response_message.tool_calls:
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments)
+                            
+                            if function_name == "check_symptoms":
+                                function_response = check_symptoms(egfr_value=function_args.get("egfr_value", 0))
+                            elif function_name == "check_drug_safety":
+                                function_response = check_drug_safety(
+                                    medication_name=function_args.get("medication_name", ""), 
+                                    egfr_value=function_args.get("egfr_value", 0)
+                                )
+                            else:
+                                function_response = "Unknown tool"
+                                
+                            st.session_state.groq_chat_history.append({
+                                "tool_call_id": tool_call.id,
+                                "role": "tool",
+                                "name": function_name,
+                                "content": str(function_response),
+                            })
+                        
+                        # Second request with tool results
+                        second_response = groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=st.session_state.groq_chat_history
+                        )
+                        final_message = second_response.choices[0].message
+                        st.session_state.groq_chat_history.append({"role": "assistant", "content": final_message.content})
+                        st.markdown(final_message.content)
+                        st.session_state.messages.append({"role": "assistant", "content": final_message.content})
+                    else:
+                        st.markdown(response_message.content)
+                        st.session_state.messages.append({"role": "assistant", "content": response_message.content})
+                        
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
-                    # Optionally append the error to messages so it persists on next runs
                     st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
             else:
-                st.warning("Gemini client is not configured.")
+                st.warning("Groq client is not configured.")
 
 if st.session_state.get("show_chat", False):
     chat_popup()
