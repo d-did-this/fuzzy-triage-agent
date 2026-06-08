@@ -66,8 +66,8 @@ st.markdown("""
         justify-content: center;
     }
 
-    /* Force iframe to cover the entire viewport without scrollbars */
-    iframe {
+    /* Force the specific kiosk iframe to cover the entire viewport without scrollbars */
+    iframe[title="kiosk"] {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
@@ -125,68 +125,60 @@ if component_value:
             st.session_state.last_data = component_value
             st.rerun()
 
-# 7. Agentic Chatbot Interface (Sidebar)
-if "show_chat" not in st.session_state:
-    st.session_state.show_chat = False
-
-if st.session_state.show_chat:
-    with st.sidebar:
-        # Auto-expand sidebar using JS (runs once when opened)
-        if not st.session_state.get("chat_opened", False):
-            st.components.v1.html("""
-                <script>
-                var toggle = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-                if (toggle) { toggle.click(); }
-                </script>
-            """, height=0)
-            st.session_state.chat_opened = True
-
-        st.markdown("### 💬 Triage Nurse")
+# 7. Agentic Chatbot Interface (Popup)
+@st.dialog("💬 Chat with AI Nurse", width="large")
+def chat_popup():
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
         
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-            
-        messages_container = st.container(height=600)
-        
-        for message in st.session_state.messages:
-            with messages_container.chat_message(message["role"]):
-                st.markdown(message["content"])
+    messages_container = st.container(height=600)
+    
+    for message in st.session_state.messages:
+        with messages_container.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-        if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
-            with messages_container.chat_message("user"):
-                st.markdown(prompt)
+    if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
+        with messages_container.chat_message("user"):
+            st.markdown(prompt)
+        
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        current_egfr = "Unknown"
+        current_creat = "Unknown"
+        current_tier = "Unknown"
+        
+        if st.session_state.last_data:
+            current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
+            current_creat = st.session_state.last_data.get('creat', 'Unknown')
+        
+        if st.session_state.score is not None and st.session_state.score >= 0:
+            score = st.session_state.score
+            if score < 40: current_tier = "Normal"
+            elif score < 60: current_tier = "Mild"
+            elif score < 80: current_tier = "Moderate"
+            else: current_tier = "Severe"
             
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            
-            current_egfr = "Unknown"
-            current_creat = "Unknown"
-            current_tier = "Unknown"
-            
-            if st.session_state.last_data:
-                current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
-                current_creat = st.session_state.last_data.get('creat', 'Unknown')
-            
-            if st.session_state.score is not None and st.session_state.score >= 0:
-                score = st.session_state.score
-                if score < 40: current_tier = "Normal"
-                elif score < 60: current_tier = "Mild"
-                elif score < 80: current_tier = "Moderate"
-                else: current_tier = "Severe"
-                
-            system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
-            
-            full_prompt = system_context + prompt
-            
-            with messages_container.chat_message("assistant"):
-                if 'agent_model' in locals() and agent_model is not None:
-                    try:
-                        if "gemini_chat" not in st.session_state:
-                            st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
-                        
-                        response = st.session_state.gemini_chat.send_message(full_prompt)
-                        st.markdown(response.text)
-                        st.session_state.messages.append({"role": "assistant", "content": response.text})
-                    except Exception as e:
-                        st.error(f"Error communicating with agent: {e}")
-                else:
-                    st.warning("Gemini model is not configured.")
+        system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
+        
+        full_prompt = system_context + prompt
+        
+        with messages_container.chat_message("assistant"):
+            if 'agent_model' in globals() and agent_model is not None:
+                try:
+                    if "gemini_chat" not in st.session_state:
+                        st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
+                    
+                    response = st.session_state.gemini_chat.send_message(full_prompt)
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                except Exception as e:
+                    st.error(f"Error communicating with agent: {e}")
+            else:
+                st.warning("Gemini model is not configured.")
+        
+        # Rerun to update the dialog with the new message
+        st.rerun()
+
+if st.session_state.get("show_chat", False):
+    chat_popup()
+    st.session_state.show_chat = False # Reset so it doesn't pop up again unnecessarily unless triggered by the button
