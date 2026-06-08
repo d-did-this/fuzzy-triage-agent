@@ -154,7 +154,7 @@ def chat_popup():
                 try:
                     if "gemini_chat" not in st.session_state:
                         st.session_state.gemini_chat = gemini_client.chats.create(
-                            model="gemini-1.5-flash",
+                            model="gemini-2.0-flash",
                             config=types.GenerateContentConfig(
                                 tools=[check_symptoms, check_drug_safety]
                             )
@@ -165,11 +165,10 @@ def chat_popup():
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
+                    # Optionally append the error to messages so it persists on next runs
+                    st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
             else:
                 st.warning("Gemini client is not configured.")
-        
-        # Rerun to update the dialog with the new message
-        st.rerun()
 
 if st.session_state.get("show_chat", False):
     chat_popup()
