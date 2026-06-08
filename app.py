@@ -63,27 +63,50 @@ st.markdown("""
         display: block;
     }
     
-    /* Unhide the Toggle */
-    [data-testid="collapsedControl"] { display: flex !important; z-index: 999999 !important; }
+    /* Transform Streamlit Dialog into a Premium Right-Side Panel */
+    div[data-testid="stModal"] {
+        background-color: rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(5px) !important;
+        z-index: 999999 !important;
+    }
     
-    /* Sidebar Styling */
-    [data-testid="stSidebar"] {
-        z-index: 99999 !important;
-        box-shadow: 5px 0 15px rgba(0,0,0,0.3);
-        background-color: #0b0f19 !important;
+    div[role="dialog"] {
+        position: absolute !important;
+        right: 0 !important;
+        top: 0 !important;
+        height: 100vh !important;
+        width: 450px !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+        border-radius: 20px 0 0 20px !important;
+        background: linear-gradient(145deg, #0f172a, #0b0f19) !important;
+        box-shadow: -10px 0 30px rgba(0,0,0,0.8) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        border-right: none !important;
+        animation: slideInRight 0.3s ease-out forwards;
+    }
+
+    @keyframes slideInRight {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+    }
+    
+    /* Hide the native close button to force use of our state-managed close button */
+    div[role="dialog"] button[aria-label="Close"] {
+        display: none !important;
     }
 
     /* Chat Bubble Styling */
     [data-testid="stChatMessage"] {
-        background-color: #1f2937;
+        background-color: #1e293b;
         border-radius: 15px;
         padding: 10px;
         margin-bottom: 10px;
-        border: none;
+        border: 1px solid rgba(255,255,255,0.05);
     }
     
     [data-testid="stChatMessage"]:nth-child(even) {
-        background-color: #374151; /* distinct background for user/assistant */
+        background-color: #334155; /* distinct background for user/assistant */
     }
     
     /* Prevent Streamlit background bleeding */
@@ -124,7 +147,6 @@ if component_value:
             st.session_state.show_chat = True
             st.session_state.chat_opened = False # flag to trigger JS open
             st.session_state.last_data = component_value
-            st.toast("👈 Open the sidebar on the left to chat with the AI Nurse!")
             st.rerun()
         else:
             # Process the 8 parameters through the mathematical Fuzzy Engine
@@ -183,9 +205,14 @@ GROQ_TOOLS = [
     }
 ]
 
-with st.sidebar:
-    st.title("🩺 AI Triage Nurse")
-    
+@st.dialog("🩺 AI Triage Nurse", width="large")
+def chat_popup():
+    col1, col2 = st.columns([8, 2])
+    with col2:
+        if st.button("❌ Close", use_container_width=True):
+            st.session_state.show_chat = False
+            st.rerun()
+            
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
@@ -284,3 +311,6 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
             else:
                 st.warning("Groq client is not configured.")
+
+if st.session_state.get("show_chat", False):
+    chat_popup()
