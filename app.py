@@ -1,7 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import fuzzy_engine
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from agentic_tools import check_symptoms, check_drug_safety
 
 # 1. Page Config
@@ -16,13 +17,11 @@ except Exception:
 if not gemini_api_key:
     st.warning("GEMINI_API_KEY is missing from st.secrets. Agent will not work.")
 else:
-    genai.configure(api_key=gemini_api_key)
-
-try:
-    agent_model = genai.GenerativeModel('gemini-1.5-flash', tools=[check_symptoms, check_drug_safety])
-except Exception as e:
-    agent_model = None
-    st.warning(f"Failed to initialize Gemini model: {e}")
+    try:
+        gemini_client = genai.Client(api_key=gemini_api_key)
+    except Exception as e:
+        gemini_client = None
+        st.warning(f"Failed to initialize Gemini client: {e}")
 
 # 2. Force Streamlit out of the way (Full-screen iframe injection)
 st.markdown("""
@@ -163,10 +162,15 @@ def chat_popup():
         full_prompt = system_context + prompt
         
         with messages_container.chat_message("assistant"):
-            if 'agent_model' in globals() and agent_model is not None:
+            if 'gemini_client' in globals() and gemini_client is not None:
                 try:
                     if "gemini_chat" not in st.session_state:
-                        st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
+                        st.session_state.gemini_chat = gemini_client.chats.create(
+                            model="gemini-1.5-flash",
+                            config=types.GenerateContentConfig(
+                                tools=[check_symptoms, check_drug_safety]
+                            )
+                        )
                     
                     response = st.session_state.gemini_chat.send_message(full_prompt)
                     st.markdown(response.text)
@@ -174,7 +178,7 @@ def chat_popup():
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
             else:
-                st.warning("Gemini model is not configured.")
+                st.warning("Gemini client is not configured.")
         
         # Rerun to update the dialog with the new message
         st.rerun()
