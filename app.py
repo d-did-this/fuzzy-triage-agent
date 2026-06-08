@@ -104,67 +104,89 @@ component_value = kiosk_ui(score=st.session_state.score, key="kiosk")
 if component_value:
     # Check if the user just clicked Generate and sent us new data
     if st.session_state.last_data != component_value:
+        action = component_value.get("action")
         
-        # Process the 8 parameters through the mathematical Fuzzy Engine
-        try:
-            new_score = fuzzy_engine.assess_patient(component_value)
-            st.session_state.score = new_score
-        except Exception as e:
-            st.session_state.score = -1
-            print(f"Error calculating score: {e}")
-            
-        st.session_state.last_data = component_value
-        
-        # Rerun Streamlit. This forces `kiosk_ui()` to be called again on line 42
-        # which instantly drops the newly calculated score right into the Javascript listener!
-        st.rerun()
-
-# 7. Agentic Chatbot Interface
-st.markdown("### Educational Triage Nurse")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    current_egfr = "Unknown"
-    current_creat = "Unknown"
-    current_tier = "Unknown"
-    
-    if st.session_state.last_data:
-        current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
-        current_creat = st.session_state.last_data.get('creat', 'Unknown')
-    
-    if st.session_state.score is not None and st.session_state.score >= 0:
-        score = st.session_state.score
-        if score < 40: current_tier = "Normal"
-        elif score < 60: current_tier = "Mild"
-        elif score < 80: current_tier = "Moderate"
-        else: current_tier = "Severe"
-        
-    system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
-    
-    full_prompt = system_context + prompt
-    
-    with st.chat_message("assistant"):
-        if 'agent_model' in locals() and agent_model is not None:
-            try:
-                if "gemini_chat" not in st.session_state:
-                    st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
-                
-                response = st.session_state.gemini_chat.send_message(full_prompt)
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Error communicating with agent: {e}")
+        if action == "open_chat":
+            st.session_state.show_chat = True
+            st.session_state.chat_opened = False # flag to trigger JS open
+            st.session_state.last_data = component_value
+            st.rerun()
         else:
-            st.warning("Gemini model is not configured.")
+            # Process the 8 parameters through the mathematical Fuzzy Engine
+            try:
+                # filter out 'action' key
+                lab_data = {k: v for k, v in component_value.items() if k != "action"}
+                new_score = fuzzy_engine.assess_patient(lab_data)
+                st.session_state.score = new_score
+            except Exception as e:
+                st.session_state.score = -1
+                print(f"Error calculating score: {e}")
+                
+            st.session_state.last_data = component_value
+            st.rerun()
 
+# 7. Agentic Chatbot Interface (Sidebar)
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
+
+if st.session_state.show_chat:
+    with st.sidebar:
+        # Auto-expand sidebar using JS (runs once when opened)
+        if not st.session_state.get("chat_opened", False):
+            st.components.v1.html("""
+                <script>
+                var toggle = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+                if (toggle) { toggle.click(); }
+                </script>
+            """, height=0)
+            st.session_state.chat_opened = True
+
+        st.markdown("### 💬 Triage Nurse")
+        
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+            
+        messages_container = st.container(height=600)
+        
+        for message in st.session_state.messages:
+            with messages_container.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
+            with messages_container.chat_message("user"):
+                st.markdown(prompt)
+            
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            
+            current_egfr = "Unknown"
+            current_creat = "Unknown"
+            current_tier = "Unknown"
+            
+            if st.session_state.last_data:
+                current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
+                current_creat = st.session_state.last_data.get('creat', 'Unknown')
+            
+            if st.session_state.score is not None and st.session_state.score >= 0:
+                score = st.session_state.score
+                if score < 40: current_tier = "Normal"
+                elif score < 60: current_tier = "Mild"
+                elif score < 80: current_tier = "Moderate"
+                else: current_tier = "Severe"
+                
+            system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
+            
+            full_prompt = system_context + prompt
+            
+            with messages_container.chat_message("assistant"):
+                if 'agent_model' in locals() and agent_model is not None:
+                    try:
+                        if "gemini_chat" not in st.session_state:
+                            st.session_state.gemini_chat = agent_model.start_chat(enable_automatic_function_calling=True)
+                        
+                        response = st.session_state.gemini_chat.send_message(full_prompt)
+                        st.markdown(response.text)
+                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    except Exception as e:
+                        st.error(f"Error communicating with agent: {e}")
+                else:
+                    st.warning("Gemini model is not configured.")
