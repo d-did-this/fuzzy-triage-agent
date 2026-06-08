@@ -42,7 +42,7 @@ st.markdown("""
     }
 
     /* Force the kiosk iframe to cover the entire viewport without scrollbars */
-    .kiosk-wrapper iframe {
+    iframe {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
@@ -76,9 +76,7 @@ if "last_data" not in st.session_state:
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
-st.markdown('<div class="kiosk-wrapper">', unsafe_allow_html=True)
 component_value = kiosk_ui(score=st.session_state.score, key="kiosk")
-st.markdown('</div>', unsafe_allow_html=True)
 
 # 6. Bi-directional Logic
 if component_value:
