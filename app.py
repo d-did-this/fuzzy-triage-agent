@@ -35,8 +35,17 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Hide the huge Streamlit header block so it doesn't cover the app */
-    header { display: none !important; }
+    /* Make the header transparent instead of hiding it, so the sidebar toggle remains visible! */
+    header { 
+        background: transparent !important; 
+        box-shadow: none !important;
+        pointer-events: none; /* Let clicks pass through the invisible header to the iframe */
+    }
+    
+    /* Re-enable clicks for the buttons inside the header (like the sidebar toggle) */
+    header * {
+        pointer-events: auto;
+    }
     
     /* --- BUTTON SAFE ZONES --- */
     .stButton {
@@ -46,15 +55,12 @@ st.markdown("""
         justify-content: center;
     }
 
-    /* Force the kiosk iframe to cover the entire viewport without scrollbars */
+    /* Force the kiosk iframe to fill the viewport */
     iframe {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
         display: block;
-        position: fixed;
-        top: 0; left: 0;
-        z-index: 1;
     }
     
     /* Unhide the Toggle */
