@@ -154,7 +154,7 @@ def chat_popup():
                 try:
                     if "gemini_chat" not in st.session_state:
                         st.session_state.gemini_chat = gemini_client.chats.create(
-                            model="gemini-1.5-flash",
+                            model="gemini-2.0-flash",
                             config=types.GenerateContentConfig(
                                 tools=[check_symptoms, check_drug_safety]
                             )
