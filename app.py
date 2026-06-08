@@ -66,12 +66,14 @@ st.markdown("""
     
     /* Transform Streamlit Dialog into a Premium Right-Side Panel */
     div[data-testid="stModal"] {
-        background-color: rgba(0, 0, 0, 0.4) !important;
-        backdrop-filter: blur(5px) !important;
+        background-color: transparent !important; /* Remove backdrop tint so they can see the app */
+        backdrop-filter: none !important; /* Remove blur so app is readable */
         z-index: 999999 !important;
+        pointer-events: none !important; /* Let clicks/scroll pass through to the main app! */
     }
     
     div[role="dialog"] {
+        pointer-events: auto !important; /* Re-enable clicks for the dialog itself */
         position: absolute !important;
         right: 0 !important;
         top: 0 !important;
@@ -255,7 +257,7 @@ def chat_popup():
             if groq_client is not None:
                 try:
                     response = groq_client.chat.completions.create(
-                        model="llama3-groq-70b-8192-tool-use-preview",
+                        model="llama-3.3-70b-versatile",
                         messages=st.session_state.groq_chat_history,
                         tools=GROQ_TOOLS,
                         tool_choice="auto"
@@ -296,7 +298,7 @@ def chat_popup():
                         
                         # Second request with tool results
                         second_response = groq_client.chat.completions.create(
-                            model="llama3-groq-70b-8192-tool-use-preview",
+                            model="llama-3.3-70b-versatile",
                             messages=st.session_state.groq_chat_history
                         )
                         final_message = second_response.choices[0].message
