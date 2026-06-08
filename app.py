@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import fuzzy_engine
 import urllib.parse
 import json
+import re
 from groq import Groq
 from agentic_tools import check_symptoms, check_drug_safety
 
@@ -245,7 +246,7 @@ def chat_popup():
             
         full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k != "action"]) if st.session_state.last_data else "No lab data provided."
             
-        system_context = f"System Context: You are a highly professional, empathetic triage nurse. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}). Rule 1: If the user just says hello, politely greet them back and ask how you can help them understand their report today. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\n\nUser Question: "
+        system_context = f"System Context: You are a highly professional, empathetic triage nurse. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}). Rule 1: If the user just says hello, politely greet them back and ask how you can help them understand their report today. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\nCRITICAL RULE: You must NEVER output XML tags, <function>, or JSON blocks in your normal text responses. If you need to use a tool, use the native tool calling API. Your text response must ONLY be natural, conversational English.\n\nUser Question: "
         
         full_prompt = system_context + prompt
         st.session_state.groq_chat_history.append({"role": "user", "content": full_prompt})
@@ -254,7 +255,7 @@ def chat_popup():
             if groq_client is not None:
                 try:
                     response = groq_client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model="llama3-groq-70b-8192-tool-use-preview",
                         messages=st.session_state.groq_chat_history,
                         tools=GROQ_TOOLS,
                         tool_choice="auto"
@@ -295,16 +296,28 @@ def chat_popup():
                         
                         # Second request with tool results
                         second_response = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
+                            model="llama3-groq-70b-8192-tool-use-preview",
                             messages=st.session_state.groq_chat_history
                         )
                         final_message = second_response.choices[0].message
+                        
+                        # Scrub any <function=...> tags from the display text
+                        clean_content = re.sub(r'<function=.*?</function>', '', final_message.content or '', flags=re.DOTALL)
+                        clean_content = clean_content.strip()
+                        
                         st.session_state.groq_chat_history.append({"role": "assistant", "content": final_message.content})
-                        st.markdown(final_message.content)
-                        st.session_state.messages.append({"role": "assistant", "content": final_message.content})
+                        
+                        if clean_content:
+                            st.markdown(clean_content)
+                            st.session_state.messages.append({"role": "assistant", "content": clean_content})
                     else:
-                        st.markdown(response_message.content)
-                        st.session_state.messages.append({"role": "assistant", "content": response_message.content})
+                        # Scrub any <function=...> tags from the display text
+                        clean_content = re.sub(r'<function=.*?</function>', '', response_message.content or '', flags=re.DOTALL)
+                        clean_content = clean_content.strip()
+                        
+                        if clean_content:
+                            st.markdown(clean_content)
+                            st.session_state.messages.append({"role": "assistant", "content": clean_content})
                         
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
