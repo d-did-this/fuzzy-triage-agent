@@ -5,4 +5,4 @@ scikit-fuzzy
 plotly
 networkx
 scipy
-google-generativeai
+groq
