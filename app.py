@@ -33,6 +33,9 @@ st.markdown("""
         max-width: 100% !important;
     }
     
+    /* Hide the huge Streamlit header block so it doesn't cover the app */
+    header { display: none !important; }
+    
     /* --- BUTTON SAFE ZONES --- */
     .stButton {
         margin-top: 15px;
@@ -106,6 +109,12 @@ if component_value:
 # 7. Agentic Chatbot Interface (Popup)
 @st.dialog("💬 Chat with AI Nurse", width="large")
 def chat_popup():
+    col1, col2 = st.columns([8, 2])
+    with col2:
+        if st.button("❌ Close Chat", use_container_width=True):
+            st.session_state.show_chat = False
+            st.rerun()
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
         
@@ -164,4 +173,3 @@ def chat_popup():
 
 if st.session_state.get("show_chat", False):
     chat_popup()
-    st.session_state.show_chat = False # Reset so it doesn't pop up again unnecessarily unless triggered by the button
