@@ -1,8 +1,12 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import fuzzy_engine
-from google import genai
-from google.genai import types
+import urllib.parse
+import warnings
+
+# Suppress the deprecation warning for the old SDK so it doesn't clutter the logs
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+import google.generativeai as genai
 from agentic_tools import check_symptoms, check_drug_safety
 
 # 1. Page Config
@@ -18,7 +22,9 @@ if not gemini_api_key:
     st.warning("GEMINI_API_KEY is missing from st.secrets. Agent will not work.")
 else:
     try:
-        gemini_client = genai.Client(api_key=gemini_api_key)
+        genai.configure(api_key=gemini_api_key)
+        # Verify initialization by listing models (optional, we just assume it works)
+        gemini_client = True 
     except Exception as e:
         gemini_client = None
         st.warning(f"Failed to initialize Gemini client: {e}")
@@ -153,12 +159,12 @@ def chat_popup():
             if 'gemini_client' in globals() and gemini_client is not None:
                 try:
                     if "gemini_chat" not in st.session_state:
-                        st.session_state.gemini_chat = gemini_client.chats.create(
-                            model="gemini-2.0-flash",
-                            config=types.GenerateContentConfig(
-                                tools=[check_symptoms, check_drug_safety]
-                            )
+                        # Use the old robust SDK syntax
+                        model = genai.GenerativeModel(
+                            model_name="gemini-1.5-flash",
+                            tools=[check_symptoms, check_drug_safety]
                         )
+                        st.session_state.gemini_chat = model.start_chat()
                     
                     response = st.session_state.gemini_chat.send_message(full_prompt)
                     st.markdown(response.text)
