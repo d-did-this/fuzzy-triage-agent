@@ -36,16 +36,39 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Make the header transparent instead of hiding it, so the sidebar toggle remains visible! */
-    header { 
-        background: transparent !important; 
-        box-shadow: none !important;
-        pointer-events: none; /* Let clicks pass through the invisible header to the iframe */
+    /* Hide the entire Streamlit Header (Share, Deploy, Menu, Toggle) */
+    header { display: none !important; }
+    
+    /* Style the floating Ai Nurse button on the main page */
+    .stApp .stButton > button {
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
+        border-radius: 30px !important;
+        font-weight: 600 !important;
+        padding: 10px 24px !important;
+        transition: transform 0.2s, box-shadow 0.2s !important;
+        width: auto !important;
     }
     
-    /* Re-enable clicks for the buttons inside the header (like the sidebar toggle) */
-    header * {
-        pointer-events: auto;
+    .stApp .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6) !important;
+    }
+    
+    /* RESET the close button styles inside the dialog so it stays normal! */
+    div[role="dialog"] .stButton > button {
+        position: static !important;
+        background: #334155 !important;
+        box-shadow: none !important;
+        border-radius: 8px !important;
+        transform: none !important;
+        width: 100% !important;
     }
     
     /* --- BUTTON SAFE ZONES --- */
@@ -162,8 +185,14 @@ if component_value:
                 st.session_state.score = -1
                 print(f"Error calculating score: {e}")
                 
+                
             st.session_state.last_data = component_value
             st.rerun()
+
+# Floating Native Chat Button
+if st.button("🤖 AI Nurse"):
+    st.session_state.show_chat = True
+    st.rerun()
 
 # 7. Agentic Chatbot Interface (Popup)
 # Define Groq Tools Schema
