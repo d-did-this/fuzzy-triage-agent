@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiosk Health Agent</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.05);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --accent: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --safe: #10b981;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at 50% 0%, #1e293b 0%, var(--bg-color) 100%);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+        }
+
+        .ambient-orb { position: fixed; border-radius: 50%; filter: blur(100px); z-index: -1; animation: float 10s infinite alternate ease-in-out; }
+        .orb-1 { width: 400px; height: 400px; background: rgba(59, 130, 246, 0.15); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: rgba(16, 185, 129, 0.1); bottom: 10%; right: -50px; animation-delay: -5s;}
+
+        @keyframes float {
+            0% { transform: translateY(0px) scale(1); }
+            100% { transform: translateY(30px) scale(1.05); }
+        }
+
+        .kiosk-container {
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header {
+            padding: 30px 40px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 700; background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .progress-bar { display: flex; gap: 10px; }
+        .progress-dot { width: 12px; height: 12px; border-radius: 50%; background: #334155; transition: all 0.4s ease; }
+        .progress-dot.active { background: var(--primary); box-shadow: 0 0 10px var(--primary-glow); transform: scale(1.2); }
+
+        .step-wrapper {
+            flex-grow: 1;
+            position: relative;
+            overflow-y: auto;
+            padding: 40px;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .step {
+            position: absolute;
+            top: 40px; left: 40px; right: 40px;
+            opacity: 0;
+            transform: translateY(20px);
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-bottom: 60px;
+        }
+        .step.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+            position: relative;
+            top: 0; left: 0; right: 0;
+        }
+
+        h2 { font-size: 32px; margin-top: 0; font-weight: 300; }
+        h2 strong { font-weight: 700; color: white; }
+
+        .input-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 30px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .control-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 25px;
+            transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+        }
+        .control-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .control-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .control-label { font-size: 18px; font-weight: 500; color: #cbd5e1; }
+        .control-unit { font-size: 14px; color: var(--text-muted); }
+
+        .slider-container { display: flex; align-items: center; gap: 15px; }
+        
+        .btn-icon {
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white; font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease;
+            user-select: none;
+        }
+        .btn-icon:hover { background: rgba(255, 255, 255, 0.15); transform: scale(1.05); }
+        .btn-icon:active { transform: scale(0.95); }
+
+        input[type=range] {
+            flex-grow: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        input[type=number], input[type=text] {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            padding: 10px;
+            width: 80px;
+            text-align: center;
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input[type=number]:focus, input[type=text]:focus { border-color: var(--primary); box-shadow: 0 0 10px var(--primary-glow); }
+        input[type=text].name-input { width: 100%; max-width: 400px; text-align: left; padding: 15px 20px; font-size: 24px; }
+
+        .footer {
+            padding: 30px 40px;
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        
+        .btn {
+            padding: 15px 35px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px; font-weight: 700;
+            border-radius: 15px;
+            cursor: pointer; border: none;
+            transition: all 0.3s ease;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-back { background: transparent; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-back:hover { background: rgba(255,255,255,0.05); color: white; }
+        .btn-next { background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3); }
+        .btn-next:hover { transform: translateY(-3px); box-shadow: 0 15px 25px rgba(59, 130, 246, 0.4); }
+        .btn-generate { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3); color: white; }
+        .btn-generate:hover { transform: translateY(-3px); box-shadow: 0 15px 25px rgba(16, 185, 129, 0.4); }
+
+        /* --- Results Dashboard --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            height: auto;
+        }
+        .dashboard-grid .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .dash-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 30px;
+            display: flex; flex-direction: column;
+        }
+
+        .score-display { text-align: center; padding-bottom: 20px; border-bottom: 1px solid var(--card-border); margin-bottom: 20px; }
+        .score-circle-wrapper { position: relative; width: 160px; height: 160px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center; }
+        .score-ring { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; border: 8px solid; filter: drop-shadow(0 0 15px currentColor); opacity: 0.8; animation: pulse 2s infinite alternate; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }
+        .score-value { font-size: 64px; font-weight: 900; margin: 0; line-height: 1;}
+        .score-label { font-size: 16px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px;}
+        .risk-badge { display: inline-block; padding: 8px 24px; border-radius: 30px; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 15px; }
+
+        /* Findings */
+        .findings-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));}
+        .findings-list.full-column { display: flex; flex-direction: column; }
+        .finding-item { padding: 15px 20px; border-radius: 12px; background: rgba(0,0,0,0.2); border-left: 4px solid; display: flex; align-items: flex-start; gap: 15px; }
+        .finding-item.danger { border-color: var(--danger); }
+        .finding-item.warning { border-color: var(--warning); }
+        .finding-item.safe { border-color: var(--safe); }
+        .finding-icon { font-size: 24px; line-height: 1; }
+        .finding-content h4 { margin: 0 0 5px 0; font-size: 16px; color: white; }
+        .finding-content p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.4; }
+
+        /* Modern Table & Tooltips */
+        .modern-table { width: 100%; border-collapse: collapse; }
+        .modern-table th { text-align: left; padding: 12px; border-bottom: 1px solid var(--card-border); color: var(--text-muted); font-weight: 500; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;}
+        .modern-table td { padding: 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .badge { padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; display: inline-block;}
+        .badge.safe { background: rgba(16, 185, 129, 0.15); color: var(--safe); border: 1px solid var(--safe);}
+        .badge.warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid var(--warning);}
+        .badge.danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid var(--danger);}
+
+        .tooltip { position: relative; cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); display: inline-block;}
+        .tooltip .tooltiptext {
+            visibility: hidden; width: 250px; background-color: rgba(15, 23, 42, 0.95);
+            color: #fff; text-align: center; border-radius: 8px; padding: 12px;
+            position: absolute; z-index: 9999; bottom: 130%; left: 50%;
+            transform: translateX(-50%); font-size: 14px; font-weight: normal;
+            opacity: 0; transition: opacity 0.3s;
+            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+
+        .overall-report { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border-left: 5px solid var(--primary); padding: 25px; border-radius: 0 12px 12px 0; font-size: 18px; line-height: 1.6; color: #e2e8f0; }
+
+        #radar-chart { flex-grow: 1; width: 100%; min-height: 250px; }
+
+    </style>
+</head>
+<body>
+
+<div class="ambient-orb orb-1"></div>
+<div class="ambient-orb orb-2"></div>
+
+<div class="kiosk-container">
+    
+    <div class="header">
+        <h1>HealthAgent Pro</h1>
+        <div class="progress-bar">
+            <div class="progress-dot active" id="dot-1"></div>
+            <div class="progress-dot" id="dot-2"></div>
+            <div class="progress-dot" id="dot-3"></div>
+            <div class="progress-dot" id="dot-4"></div>
+        </div>
+    </div>
+
+    <div class="step-wrapper">
+        <!-- Step 1: Welcome -->
+        <div class="step active" id="step1">
+            <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding-top: 50px;">
+                <h2 style="font-size: 48px; margin-bottom: 20px;">Begin Your <strong>Triage Assessment</strong></h2>
+                <p style="font-size: 20px; color: var(--text-muted); max-width: 600px; margin-bottom: 50px; line-height: 1.5;">
+                    Please input your laboratory parameters on the following screens. Our AI will instantly analyze your physiological markers.
+                </p>
+                <div class="control-card" style="width: 100%; max-width: 500px;">
+                    <div class="control-header">
+                        <span class="control-label">Patient Identification (Optional)</span>
+                    </div>
+                    <input type="text" class="name-input" id="name" placeholder="Tap to enter name...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Haematology -->
+        <div class="step" id="step2">
+            <h2 style="text-align:center;"><strong>Haematology</strong> Panel</h2>
+            <p style="color: var(--text-muted); font-size: 18px; text-align:center;">Adjust the sliders to match your blood count results.</p>
+            
+            <div class="input-grid">
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Haemoglobin (Hb)</span>
+                        <span class="control-unit">g/dL</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('hb', -0.1)">-</div>
+                        <input type="range" id="hb_slider" min="5.0" max="25.0" step="0.1" value="15.0" oninput="syncVal('hb', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('hb', 0.1)">+</div>
+                        <input type="number" id="hb_text" min="5.0" max="25.0" step="0.1" value="15.0" oninput="syncSlider('hb', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">White Blood Cells (WBC)</span>
+                        <span class="control-unit">x10^9/L</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('wbc', -0.1)">-</div>
+                        <input type="range" id="wbc_slider" min="1.0" max="30.0" step="0.1" value="7.0" oninput="syncVal('wbc', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('wbc', 0.1)">+</div>
+                        <input type="number" id="wbc_text" min="1.0" max="30.0" step="0.1" value="7.0" oninput="syncSlider('wbc', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Platelets (PLT)</span>
+                        <span class="control-unit">x10^9/L</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('plt', -1)">-</div>
+                        <input type="range" id="plt_slider" min="10" max="600" step="1" value="250" oninput="syncVal('plt', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('plt', 1)">+</div>
+                        <input type="number" id="plt_text" min="10" max="600" step="1" value="250" oninput="syncSlider('plt', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Neutrophils (NEU)</span>
+                        <span class="control-unit">%</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('neu', -0.1)">-</div>
+                        <input type="range" id="neu_slider" min="10.0" max="95.0" step="0.1" value="55.0" oninput="syncVal('neu', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('neu', 0.1)">+</div>
+                        <input type="number" id="neu_text" min="10.0" max="95.0" step="0.1" value="55.0" oninput="syncSlider('neu', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Mean Corpuscular Volume (MCV)</span>
+                        <span class="control-unit">fL</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('mcv', -1)">-</div>
+                        <input type="range" id="mcv_slider" min="50" max="130" step="1" value="88" oninput="syncVal('mcv', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('mcv', 1)">+</div>
+                        <input type="number" id="mcv_text" min="50" max="130" step="1" value="88" oninput="syncSlider('mcv', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Red Cell Dist. Width (RDW)</span>
+                        <span class="control-unit">%</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('rdw', -0.1)">-</div>
+                        <input type="range" id="rdw_slider" min="10.0" max="25.0" step="0.1" value="13.0" oninput="syncVal('rdw', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('rdw', 0.1)">+</div>
+                        <input type="number" id="rdw_text" min="10.0" max="25.0" step="0.1" value="13.0" oninput="syncSlider('rdw', this.value)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Renal Panel -->
+        <div class="step" id="step3">
+            <h2 style="text-align:center;"><strong>Renal</strong> Panel</h2>
+            <p style="color: var(--text-muted); font-size: 18px; text-align:center;">Input your kidney filtration markers.</p>
+            
+            <div class="input-grid">
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Est. Glomerular Filtration (eGFR)</span>
+                        <span class="control-unit">mL/min</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('egfr', -1)">-</div>
+                        <input type="range" id="egfr_slider" min="5" max="150" step="1" value="110" oninput="syncVal('egfr', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('egfr', 1)">+</div>
+                        <input type="number" id="egfr_text" min="5" max="150" step="1" value="110" oninput="syncSlider('egfr', this.value)">
+                    </div>
+                </div>
+                <div class="control-card">
+                    <div class="control-header">
+                        <span class="control-label">Creatinine</span>
+                        <span class="control-unit">umol/L</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="btn-icon" onclick="adjustValue('creat', -1)">-</div>
+                        <input type="range" id="creat_slider" min="30" max="400" step="1" value="85" oninput="syncVal('creat', this.value)">
+                        <div class="btn-icon" onclick="adjustValue('creat', 1)">+</div>
+                        <input type="number" id="creat_text" min="30" max="400" step="1" value="85" oninput="syncSlider('creat', this.value)">
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 50px; text-align: center;">
+                <div class="control-card" style="display: inline-block; padding: 30px 50px; cursor: pointer; border-color: var(--primary); background: rgba(59, 130, 246, 0.1);" onclick="generateReport()">
+                    <h3 style="margin: 0; color: white; font-size: 24px;">Ready for Analysis?</h3>
+                    <p style="color: var(--text-muted); margin: 10px 0 0 0;">Tap the Generate button below to finalize.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Results -->
+        <div class="step" id="step4" style="height: 100%;">
+            <div class="dashboard-grid">
+                
+                <!-- Card 1: Score & Radar -->
+                <div class="dash-card">
+                    <div class="score-display">
+                        <div class="score-circle-wrapper">
+                            <div class="score-ring" id="ring-ui"></div>
+                            <div>
+                                <div class="score-value" id="risk-score">0</div>
+                                <div class="score-label">Score</div>
+                            </div>
+                        </div>
+                        <div class="risk-badge" id="risk-badge">COMPUTING...</div>
+                    </div>
+                    <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #cbd5e1; text-align: center;">Biomarker Balance</h3>
+                    <div id="radar-chart"></div>
+                    
+                    <div id="risk-contributors" style="margin-top: 30px;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Card 2: AI Diagnostic Summary (was Input Summary) -->
+                <div class="dash-card">
+                    <h2 style="font-size: 24px; margin-bottom: 20px;"><strong>AI Diagnostic</strong></h2>
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Biomarker</th>
+                                <th>Your Value</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="input-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Card 3 Removed -->
+
+                <!-- Card 4: Recommended Actions (Full Width - Full Column List) -->
+                <div class="dash-card full-width">
+                    <h2 style="font-size: 24px; margin-bottom: 20px;"><strong>Recommended</strong> Actions</h2>
+                    <ul class="findings-list full-column" id="action-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+
+                <!-- Card 5: Overall Report (Full Width) -->
+                <div class="dash-card full-width">
+                    <h2 style="font-size: 24px; margin-bottom: 20px;"><strong>Overall</strong> Triage Assessment</h2>
+                    <div class="overall-report" id="overall-report-text">
+                        <!-- Populated by JS -->
+                    </div>
+                    
+                    <div style="display: flex; gap: 20px; margin-top: 30px;">
+                        <button class="btn btn-next" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.2); box-shadow: none;" onclick="changeStep(-3)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                            Redo Assessment
+                        </button>
+                        <button class="btn btn-generate" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;" onclick="alert('Printing protocol initiated...')">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download Report
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div class="footer" id="footer-nav">
+        <button class="btn btn-back" id="btn-prev" onclick="changeStep(-1)" style="visibility: hidden;">Back</button>
+        <button class="btn btn-next" id="btn-next" onclick="changeStep(1)">Begin Entry</button>
+    </div>
+</div>
+
+<script>
+    let currentStep = 1;
+    const totalSteps = 4;
+
+    function changeStep(dir) {
+        if (currentStep === 3 && dir === 1) {
+            generateReport();
+            return;
+        }
+        currentStep += dir;
+        updateUI();
+    }
+
+    function updateUI() {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step' + currentStep).classList.add('active');
+        
+        document.querySelectorAll('.progress-dot').forEach((el, idx) => {
+            if(idx < currentStep) el.classList.add('active');
+            else el.classList.remove('active');
+        });
+
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const footer = document.getElementById('footer-nav');
+
+        if (currentStep === 1) {
+            btnPrev.style.visibility = 'hidden';
+            btnNext.innerText = 'Begin Entry';
+            footer.style.display = 'flex';
+        } else if (currentStep === 3) {
+            btnPrev.style.visibility = 'visible';
+            btnNext.innerText = 'Generate Report';
+            btnNext.className = 'btn btn-generate';
+            footer.style.display = 'flex';
+        } else if (currentStep === 4) {
+            footer.style.display = 'none'; 
+        } else {
+            btnPrev.style.visibility = 'visible';
+            btnNext.innerText = 'Next Panel';
+            btnNext.className = 'btn btn-next';
+            footer.style.display = 'flex';
+        }
+    }
+
+    function syncVal(id, val) { document.getElementById(id + '_text').value = val; }
+    function syncSlider(id, val) { document.getElementById(id + '_slider').value = val; }
+
+    function adjustValue(id, change) {
+        let textInput = document.getElementById(id + '_text');
+        let sliderInput = document.getElementById(id + '_slider');
+        let min = parseFloat(sliderInput.min); let max = parseFloat(sliderInput.max);
+        let current = parseFloat(textInput.value);
+        let newVal = current + change;
+        newVal = Math.round(newVal * 10) / 10;
+        if (newVal >= min && newVal <= max) {
+            textInput.value = newVal;
+            sliderInput.value = newVal;
+        }
+    }
+
+    function generateReport() {
+        currentStep = 4;
+        updateUI();
+
+        const params = [
+            { 
+              id: 'hb', name: 'Haemoglobin (Hb)', unit: 'g/dL', val: parseFloat(document.getElementById('hb_text').value), 
+              desc: 'Oxygen-carrying protein in red blood cells.', safeMin: 13.0, safeMax: 17.5, warnMin: 10.0, warnMax: 20.0,
+              lowDiag: 'Anemia Detected: Your blood has a reduced capacity to carry oxygen. This often explains fatigue or dizziness.',
+              highDiag: 'Polycythemia Risk: Excessively thick blood detected, which increases cardiovascular strain.',
+              lowRec: ['Increase dietary iron, B12, and folate', 'Avoid strenuous exercise until levels recover', 'Consult doctor for potential iron infusion or transfusion if symptomatic'],
+              highRec: ['Stay highly hydrated', 'Avoid iron supplements', 'Consult hematologist for therapeutic evaluation']
+            },
+            { 
+              id: 'wbc', name: 'White Blood Cells (WBC)', unit: 'x10^9/L', val: parseFloat(document.getElementById('wbc_text').value), 
+              desc: 'Immune cells that fight infection.', safeMin: 4.0, safeMax: 11.2, warnMin: 2.0, warnMax: 15.0,
+              lowDiag: 'Leukopenia: Your immune system is compromised, leaving you highly vulnerable to opportunistic infections.',
+              highDiag: 'Leukocytosis: Elevated immune cells suggest an active systemic infection or significant physiological stress.',
+              lowRec: ['Avoid crowded places and sick individuals', 'Practice strict hand hygiene', 'Ensure food is thoroughly cooked (neutropenic precautions)'],
+              highRec: ['Monitor for fever, chills, or localized pain', 'Rest and allow immune system to recover', 'Seek medical attention if symptoms worsen rapidly']
+            },
+            { 
+              id: 'plt', name: 'Platelets (PLT)', unit: 'x10^9/L', val: parseFloat(document.getElementById('plt_text').value), 
+              desc: 'Cell fragments that help blood clot.', safeMin: 150, safeMax: 400, warnMin: 100, warnMax: 500,
+              lowDiag: 'Thrombocytopenia: Your blood lacks sufficient clotting agents. Even minor trauma could result in dangerous bleeding.',
+              highDiag: 'Thrombocytosis: Too many platelets can cause spontaneous clotting, leading to deep vein thrombosis risk.',
+              lowRec: ['Avoid contact sports and high-injury risk activities', 'Avoid unnecessary use of aspirin or NSAIDs unless prescribed', 'Use a soft-bristle toothbrush and electric razor', 'Seek ER immediately for unprovoked bleeding'],
+              highRec: ['Maintain strong hydration to prevent blood thickening', 'Discuss anti-platelet therapy with a doctor', 'Avoid prolonged periods of immobility']
+            },
+            { 
+              id: 'neu', name: 'Neutrophils (NEU)', unit: '%', val: parseFloat(document.getElementById('neu_text').value), 
+              desc: 'Primary WBC responders to bacterial infections.', safeMin: 40.0, safeMax: 75.0, warnMin: 30.0, warnMax: 85.0,
+              lowDiag: 'Neutropenia: Severe reduction in the primary infection-fighting cells. High risk of bacterial complications.',
+              highDiag: 'Neutrophilia: Active mobilization of immune cells, typically indicating an acute bacterial infection.',
+              lowRec: ['Strict isolation if fever develops (medical emergency)', 'Avoid fresh, unwashed produce', 'Immediate broad-spectrum antibiotics may be required'],
+              highRec: ['Follow prescribed antibiotic regimens strictly', 'Identify the primary source of infection (e.g., wound, urinary tract)', 'Monitor body temperature every 4-6 hours']
+            },
+            { 
+              id: 'mcv', name: 'Mean Corpuscular Vol (MCV)', unit: 'fL', val: parseFloat(document.getElementById('mcv_text').value), 
+              desc: 'Measures the average size of red blood cells.', safeMin: 80, safeMax: 96, warnMin: 70, warnMax: 105,
+              lowDiag: 'Microcytosis: Red blood cells are unusually small, the hallmark of chronic iron deficiency anemia.',
+              highDiag: 'Macrocytosis: Red blood cells are unusually large, pointing strongly to Vitamin B12 or Folate deficiency.',
+              lowRec: ['Schedule an iron panel and ferritin test', 'Increase intake of red meat, beans, and spinach', 'Consider Vitamin C supplementation to boost iron absorption'],
+              highRec: ['Test for Vitamin B12 and Folate levels', 'Evaluate alcohol consumption', 'Discuss B12 injections with your primary care provider']
+            },
+            { 
+              id: 'rdw', name: 'Red Cell Dist Width (RDW)', unit: '%', val: parseFloat(document.getElementById('rdw_text').value), 
+              desc: 'Variation in red blood cell size.', safeMin: 12.0, safeMax: 14.8, warnMin: 11.0, warnMax: 16.0,
+              lowDiag: 'Low RDW: Cells are uniform in size, which is generally normal and healthy.',
+              highDiag: 'High RDW (Anisocytosis): Huge variation in cell sizes. This is an early warning sign of nutritional deficiency anemia.',
+              lowRec: ['No specific clinical action required for low RDW in isolation'],
+              highRec: ['Investigate for mixed nutritional deficiencies (Iron + B12)', 'Monitor for hidden blood loss', 'Repeat CBC panel in 4 weeks']
+            },
+            { 
+              id: 'egfr', name: 'eGFR', unit: 'mL/min', val: parseFloat(document.getElementById('egfr_text').value), 
+              desc: 'Estimate of kidney filtration rate.', safeMin: 90, safeMax: 150, warnMin: 60, warnMax: 89,
+              lowDiag: 'Reduced Renal Filtration: The kidneys are struggling to filter waste products from the blood effectively.',
+              highDiag: 'Hyperfiltration: Abnormally high filtration rates, often seen in early diabetic nephropathy.',
+              lowRec: ['Strictly avoid nephrotoxic drugs like Ibuprofen/NSAIDs', 'Control blood pressure to < 130/80', 'Limit dietary sodium and protein intake', 'Consult Nephrology if < 60 mL/min'],
+              highRec: ['Screen for early-stage diabetes or insulin resistance', 'Ensure adequate but not excessive hydration']
+            },
+            { 
+              id: 'creat', name: 'Creatinine', unit: 'umol/L', val: parseFloat(document.getElementById('creat_text').value), 
+              desc: 'Muscle waste product filtered by kidneys.', safeMin: 62, safeMax: 115, warnMin: 50, warnMax: 150,
+              lowDiag: 'Low Creatinine: Often indicates low muscle mass rather than kidney issues.',
+              highDiag: 'Renal Impairment: Toxic waste is building up in the bloodstream because the kidneys are failing to excrete it.',
+              lowRec: ['Assess protein intake and overall nutritional status', 'Consider muscle-wasting conditions if clinically relevant'],
+              highRec: ['Discontinue any creatine dietary supplements', 'Review all current medications for kidney toxicity', 'Prepare for a comprehensive metabolic panel and ultrasound']
+            }
+        ];
+
+        let mockScore = 5; 
+        let dangerCount = 0;
+        let warningCount = 0;
+        
+        let tableHtml = "";
+        let goodHtml = "";
+        let badHtml = "";
+        let criticalHtml = "";
+        let actionHtml = "";
+        
+        let contributors = [];
+
+        params.forEach(p => {
+            let statusStr = 'safe';
+            let statusLabel = 'GOOD';
+            
+            let isLow = p.val < p.safeMin;
+            let isCritLow = p.val < p.warnMin;
+            let isHigh = p.val > p.safeMax;
+            let isCritHigh = p.val > p.warnMax;
+
+            let conditionState = (isLow || isCritLow) ? 'low' : (isHigh || isCritHigh) ? 'high' : 'safe';
+            let severity = (isCritLow || isCritHigh) ? 'danger' : (isLow || isHigh) ? 'warning' : 'safe';
+
+            let diagnosticText = '';
+            let recs = [];
+            let conditionLabel = '';
+
+            if (conditionState === 'safe') {
+                diagnosticText = `Perfectly stable. No clinical concerns detected for ${p.name}.`;
+            } else if (conditionState === 'low') {
+                diagnosticText = p.lowDiag;
+                recs = p.lowRec;
+                conditionLabel = `Low ${p.name}`;
+            } else {
+                diagnosticText = p.highDiag;
+                recs = p.highRec;
+                conditionLabel = `High ${p.name}`;
+            }
+            
+            if (severity === 'danger') {
+                statusStr = 'danger';
+                statusLabel = 'DANGER';
+                mockScore += 15;
+                dangerCount++;
+                contributors.push({ name: p.name, level: 'High', color: 'var(--danger)', val: 2 });
+                
+                criticalHtml += `<li class="finding-item danger">
+                    <div class="finding-icon">🚨</div>
+                    <div class="finding-content">
+                        <h4 style="color: var(--danger)">${conditionLabel} (${p.val} ${p.unit})</h4>
+                        <p>${diagnosticText}</p>
+                    </div>
+                </li>`;
+                
+                actionHtml += `<li class="finding-item danger">
+                    <div class="finding-icon">🚑</div>
+                    <div class="finding-content" style="width: 100%;">
+                        <h4 style="color: var(--danger)">For ${conditionLabel}:</h4>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #e2e8f0; line-height: 1.5;">
+                            ${recs.map(r => `<li style="margin-bottom: 5px;">${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                </li>`;
+
+            } else if (severity === 'warning') {
+                statusStr = 'warning';
+                statusLabel = 'MEDIUM';
+                mockScore += 8;
+                warningCount++;
+                contributors.push({ name: p.name, level: 'Moderate', color: 'var(--warning)', val: 1 });
+                
+                badHtml += `<li class="finding-item warning">
+                    <div class="finding-icon">⚠️</div>
+                    <div class="finding-content">
+                        <h4 style="color: var(--warning)">${conditionLabel} (${p.val} ${p.unit})</h4>
+                        <p>${diagnosticText}</p>
+                    </div>
+                </li>`;
+                
+                actionHtml += `<li class="finding-item warning">
+                    <div class="finding-icon">📋</div>
+                    <div class="finding-content" style="width: 100%;">
+                        <h4 style="color: var(--warning)">For ${conditionLabel}:</h4>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #e2e8f0; line-height: 1.5;">
+                            ${recs.map(r => `<li style="margin-bottom: 5px;">${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                </li>`;
+
+            } else {
+                goodHtml += `<li class="finding-item safe">
+                    <div class="finding-icon">✅</div>
+                    <div class="finding-content">
+                        <h4 style="color: var(--safe)">Optimal ${p.name}</h4>
+                        <p>${diagnosticText}</p>
+                    </div>
+                </li>`;
+            }
+
+            tableHtml += `
+            <tr>
+                <td>
+                    <span class="tooltip">${p.name}
+                        <span class="tooltiptext">${p.desc}</span>
+                    </span>
+                </td>
+                <td style="font-weight: 700;">${p.val} <span style="font-size:12px;color:gray;font-weight:normal;">${p.unit}</span></td>
+                <td><span class="badge ${statusStr}">${statusLabel}</span></td>
+            </tr>`;
+        });
+
+        if (!goodHtml) goodHtml = `<li class="finding-item" style="opacity:0.5"><div class="finding-content"><p>None detected.</p></div></li>`;
+        if (!badHtml) badHtml = `<li class="finding-item" style="opacity:0.5"><div class="finding-content"><p>None detected.</p></div></li>`;
+        if (!criticalHtml) criticalHtml = `<li class="finding-item" style="opacity:0.5"><div class="finding-content"><p>None detected.</p></div></li>`;
+        if (!actionHtml) actionHtml = `<li class="finding-item safe"><div class="finding-icon">🛡️</div><div class="finding-content"><h4 style="color:var(--safe)">Maintain Health</h4><p>No actionable deviations. Keep up the good work.</p></div></li>`;
+
+        // Apply UI logic
+        let badgeText, colorHex, colorRgba;
+        if (mockScore >= 60) {
+            badgeText = "HIGH RISK / URGENT"; colorHex = "var(--danger)"; colorRgba = "rgba(239, 68, 68, 0.3)";
+        } else if (mockScore >= 40) {
+            badgeText = "MODERATE RISK"; colorHex = "var(--warning)"; colorRgba = "rgba(245, 158, 11, 0.3)";
+        } else {
+            badgeText = "NORMAL / HEALTHY"; colorHex = "var(--safe)"; colorRgba = "rgba(16, 185, 129, 0.3)";
+        }
+        
+        document.getElementById('risk-score').innerText = mockScore > 100 ? 100 : mockScore;
+        document.getElementById('risk-score').style.color = colorHex;
+        document.getElementById('ring-ui').style.borderColor = colorHex;
+        document.getElementById('ring-ui').style.color = colorHex; 
+        
+        let badge = document.getElementById('risk-badge');
+        badge.innerText = badgeText;
+        badge.style.color = colorHex;
+        badge.style.backgroundColor = colorRgba;
+        
+        document.getElementById('input-table-body').innerHTML = tableHtml;
+        document.getElementById('action-list').innerHTML = actionHtml;
+        
+        // Risk Contributors Logic
+        contributors.sort((a, b) => b.val - a.val);
+        let contribHtml = `<h4 style="margin: 25px 0 15px 0; font-size: 18px; color: #cbd5e1; text-align: left;">Main Risk Contributors</h4><ul style="list-style:none; padding:0; margin:0; text-align: left;">`;
+        if (contributors.length === 0) {
+            contribHtml += `<li style="color:var(--text-muted);">None. All parameters are optimal.</li>`;
+        } else {
+            contributors.forEach((c, index) => {
+                contribHtml += `<li style="margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    <div style="font-weight:700; font-size: 16px; color: white;">${index+1}. ${c.name}</div>
+                    <div style="font-size:14px; color:var(--text-muted); margin-top: 4px;">Contribution: <strong style="color:${c.color}">${c.level}</strong></div>
+                </li>`;
+            });
+        }
+        contribHtml += `</ul>`;
+        document.getElementById('risk-contributors').innerHTML = contribHtml;
+
+        // Overall Report Logic
+        let overallText = "";
+        const nameInput = document.getElementById('name').value;
+        const patientRef = nameInput ? `for patient <strong>${nameInput}</strong>` : "for the current profile";
+
+        if (dangerCount > 0) {
+            overallText = `Based on the comprehensive analysis of 8 physiological markers ${patientRef}, <strong><span style="color:var(--danger)">${dangerCount} critical abnormalities</span></strong> were detected. The systemic triage profile is categorized as <strong>HIGH RISK</strong>. Immediate clinical intervention and specialist referral are strongly recommended. Please download the diagnostic report below and present it to the ER or primary care provider.`;
+            document.getElementById('overall-report-text').style.borderLeftColor = 'var(--danger)';
+        } else if (warningCount > 0) {
+            overallText = `Based on the comprehensive analysis ${patientRef}, <strong><span style="color:var(--warning)">${warningCount} parameters</span></strong> present moderate deviations from optimal biological baselines. The triage profile is categorized as <strong>MODERATE RISK</strong>. Preventative care measures, lifestyle modifications, and follow-up monitoring within 1-2 weeks are advised.`;
+            document.getElementById('overall-report-text').style.borderLeftColor = 'var(--warning)';
+        } else {
+            overallText = `All 8 physiological markers analyzed ${patientRef} are perfectly aligned within optimal biological ranges. The systemic triage profile is categorized as <strong>NORMAL RISK</strong>. The AI recommends continuing current lifestyle and nutritional habits. No clinical intervention is required at this time.`;
+            document.getElementById('overall-report-text').style.borderLeftColor = 'var(--safe)';
+        }
+        document.getElementById('overall-report-text').innerHTML = overallText;
+        
+        // Radar Chart
+        const theta_labels = ['Hb','WBC','PLT','NEU','MCV','RDW','eGFR','Creat'];
+        const r_baseline = [1, 1, 1, 1, 1, 1, 1, 1];
+        const r_patient = [
+            params[0].val / 15.2, params[1].val / 7.6, params[2].val / 275, params[3].val / 57.5, 
+            params[4].val / 88, params[5].val / 13.4, params[6].val / 110, params[7].val / 88.5
+        ];
+        const data = [{
+            type: 'scatterpolar', r: r_baseline, theta: theta_labels, fill: 'toself', name: 'Optimal Baseline',
+            line: {color: 'rgba(255, 255, 255, 0.2)'}, fillcolor: 'rgba(255, 255, 255, 0.05)'
+        }, {
+            type: 'scatterpolar', r: r_patient, theta: theta_labels, fill: 'toself', name: 'Patient Stats',
+            line: {color: colorHex}, fillcolor: colorRgba
+        }];
+        const layout = { polar: { radialaxis: { visible: false, range: [0, 1.5] }, angularaxis: { tickfont: { color: '#94a3b8', size: 14 } }, bgcolor: 'transparent' }, showlegend: false, paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', margin: {l: 30, r: 30, t: 30, b: 30} };
+        Plotly.newPlot('radar-chart', data, layout, {displayModeBar: false});
+    }
+</script>
+</body>
+</html>

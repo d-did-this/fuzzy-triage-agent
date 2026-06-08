@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert Clinical Rule Validation</title>
+    <style>
+        :root { --primary: #0056b3; --success: #28a745; --danger: #dc3545; --light: #f8f9fa; --dark: #343a40; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e9ecef; color: var(--dark); line-height: 1.6; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1, h2 { color: var(--primary); text-align: center; }
+        .instructions { background: #e2eef9; padding: 15px; border-left: 5px solid var(--primary); margin-bottom: 30px; font-size: 0.95em; }
+        .rule-card { background: var(--light); border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .rule-text { font-size: 1.05em; font-weight: 500; width: 70%; }
+        .rule-number { font-weight: bold; color: var(--primary); margin-right: 10px; }
+        .options { display: flex; gap: 10px; }
+        .options label { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: 2px solid transparent; font-weight: bold; user-select: none; }
+        .radio-true input:checked + span { background-color: var(--success); color: white; }
+        .radio-false input:checked + span { background-color: var(--danger); color: white; }
+        .options input { display: none; }
+        .options span { padding: 8px 16px; border-radius: 4px; border: 1px solid #ccc; display: inline-block; }
+        button { display: block; width: 100%; padding: 15px; font-size: 1.2em; background-color: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 30px; font-weight: bold; }
+        #results-container { display: none; margin-top: 40px; padding: 20px; border: 2px dashed var(--primary); border-radius: 8px; background: #fff; }
+        .rejected-item { color: var(--danger); font-weight: bold; margin-bottom: 10px; padding: 10px; background: #ffe6e6; border-left: 4px solid var(--danger); }
+        .signature-box { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 10px; width: 300px; text-align: center; }
+        @media print { body { background: white; } .container { box-shadow: none; padding: 0; } button, .instructions { display: none; } #results-container { border: 1px solid black; display: block !important; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Fuzzy Health Risk Triage Agent</h1>
+    <h2>Expert Clinical Rule Validation</h2>
+    <div class="instructions">
+        <strong>Instructions for Medical Expert:</strong><br>
+        Below are the 50 exact clinical logic rules driving our automated triage agent. Please review each rule. Select <strong>True</strong> if the logic represents safe clinical reasoning. Select <strong>False</strong> if the rule is clinically inaccurate. Once finished, click "Generate Report" and screenshot the results.
+    </div>
+    <form id="validation-form">
+        <div id="rules-list"></div>
+        <button type="button" onclick="generateReport()">Generate Validation Report</button>
+    </form>
+    <div id="results-container">
+        <h2>Validation Summary Report</h2>
+        <p id="summary-stats" style="font-size: 1.2em; font-weight: bold; text-align: center;"></p>
+        <h3 style="color: var(--danger); border-bottom: 2px solid var(--danger);">Rejected Rules (Requires Revision)</h3>
+        <div id="rejected-list"></div>
+        <div class="signature-box">
+            <p>Validated By (Doctor/Expert):</p><br><br><br>
+            <p>Date: <span id="current-date"></span></p>
+        </div>
+    </div>
+</div>
+<script>
+    // INJECT THE 50 EXTRACTED RULES HERE
+    const rules = [
+        "IF Hb is Normal AND WBC is Normal AND PLT is Normal AND NEU is Normal AND MCV is Normal AND RDW is Normal AND eGFR is Normal AND Creatinine is Normal, THEN Risk is Normal.",
+        "IF Hb is Low AND RDW is Normal, THEN Risk is Mild.",
+        "IF Hb is High AND MCV is Normal, THEN Risk is Normal.",
+        "IF WBC is Low AND NEU is Low, THEN Risk is Severe.",
+        "IF WBC is High AND NEU is High, THEN Risk is Moderate.",
+        "IF PLT is Low AND WBC is Normal, THEN Risk is Mild.",
+        "IF PLT is High AND WBC is Normal, THEN Risk is Normal.",
+        "IF NEU is Low AND WBC is Normal, THEN Risk is Mild.",
+        "IF NEU is High, THEN Risk is Mild.",
+        "IF MCV is Low, THEN Risk is Mild.",
+        "IF MCV is High, THEN Risk is Mild.",
+        "IF RDW is High, THEN Risk is Mild.",
+        "IF eGFR is Moderate, THEN Risk is Mild.",
+        "IF eGFR is Severe, THEN Risk is Severe.",
+        "IF Creatinine is Moderate, THEN Risk is Mild.",
+        "IF Creatinine is Severe, THEN Risk is Severe.",
+        "IF WBC is High AND NEU is High, THEN Risk is Moderate.",
+        "IF WBC is High AND NEU is Low, THEN Risk is Moderate.",
+        "IF WBC is Low AND NEU is Low, THEN Risk is Severe.",
+        "IF Hb is Low AND MCV is Low, THEN Risk is Moderate.",
+        "IF Hb is Low AND MCV is High, THEN Risk is Moderate.",
+        "IF Hb is Low AND RDW is High, THEN Risk is Moderate.",
+        "IF Hb is Normal AND MCV is Low AND RDW is High, THEN Risk is Mild.",
+        "IF eGFR is Moderate AND Creatinine is Moderate, THEN Risk is Moderate.",
+        "IF eGFR is Severe AND Creatinine is Moderate, THEN Risk is Severe.",
+        "IF eGFR is Moderate AND Creatinine is Severe, THEN Risk is Severe.",
+        "IF eGFR is Moderate AND Hb is Low, THEN Risk is Moderate.",
+        "IF Creatinine is Moderate AND Hb is Low, THEN Risk is Moderate.",
+        "IF eGFR is Severe AND Hb is Low, THEN Risk is Severe.",
+        "IF eGFR is Severe AND Creatinine is Normal, THEN Risk is Severe.",
+        "IF eGFR is Normal AND Creatinine is Severe, THEN Risk is Severe.",
+        "IF Hb is Low AND PLT is Low, THEN Risk is Severe.",
+        "IF WBC is High AND PLT is Low, THEN Risk is Severe.",
+        "IF WBC is Low AND PLT is Low, THEN Risk is Severe.",
+        "IF PLT is High AND WBC is High, THEN Risk is Moderate.",
+        "IF Hb is Low AND WBC is High, THEN Risk is Moderate.",
+        "IF Hb is High AND PLT is High, THEN Risk is Moderate.",
+        "IF Hb is Low AND PLT is High, THEN Risk is Moderate.",
+        "IF PLT is High AND RDW is High, THEN Risk is Moderate.",
+        "IF Hb is Low AND WBC is High AND eGFR is Moderate, THEN Risk is Severe.",
+        "IF WBC is Low AND eGFR is Moderate, THEN Risk is Moderate.",
+        "IF PLT is Low AND Creatinine is Moderate, THEN Risk is Severe.",
+        "IF WBC is High AND NEU is High AND eGFR is Normal, THEN Risk is Moderate.",
+        "IF WBC is High AND NEU is High AND Creatinine is Normal, THEN Risk is Moderate.",
+        "IF Hb is Normal AND WBC is High AND PLT is Low AND eGFR is Normal, THEN Risk is Moderate.",
+        "IF Hb is Low AND WBC is Low AND PLT is Low, THEN Risk is Severe.",
+        "IF Hb is High AND WBC is High AND PLT is High, THEN Risk is Moderate.",
+        "IF eGFR is Moderate AND RDW is High, THEN Risk is Moderate.",
+        "IF Creatinine is Moderate AND RDW is High, THEN Risk is Moderate.",
+        "IF eGFR is Severe AND Hb is Normal AND WBC is Normal AND PLT is Normal, THEN Risk is Severe."
+    ];
+
+    const rulesContainer = document.getElementById('rules-list');
+    rules.forEach((rule, index) => {
+        rulesContainer.innerHTML += `
+            <div class="rule-card" id="card-${index}">
+                <div class="rule-text"><span class="rule-number">R${index + 1}:</span> ${rule}</div>
+                <div class="options">
+                    <label class="radio-true"><input type="radio" name="rule${index}" value="true" required checked><span>True</span></label>
+                    <label class="radio-false"><input type="radio" name="rule${index}" value="false"><span>False</span></label>
+                </div>
+            </div>`;
+    });
+    document.getElementById('current-date').innerText = new Date().toLocaleDateString();
+    function generateReport() {
+        const form = document.getElementById('validation-form');
+        const formData = new FormData(form);
+        let rejected = [];
+        for (let i = 0; i < rules.length; i++) {
+            if (formData.get('rule' + i) === 'false') {
+                rejected.push({ id: i + 1, text: rules[i] });
+                document.getElementById(`card-${i}`).style.borderColor = "red";
+                document.getElementById(`card-${i}`).style.backgroundColor = "#ffe6e6";
+            } else {
+                document.getElementById(`card-${i}`).style.borderColor = "green";
+                document.getElementById(`card-${i}`).style.backgroundColor = "#e6ffe6";
+            }
+        }
+        const approvedCount = rules.length - rejected.length;
+        document.getElementById('summary-stats').innerText = `Validation Score: ${approvedCount} / ${rules.length} Rules Approved (${((approvedCount/rules.length)*100).toFixed(1)}%)`;
+        const rejectedList = document.getElementById('rejected-list');
+        rejectedList.innerHTML = rejected.length === 0 ? '<p style="color: green; font-weight: bold;">✓ All rules validated successfully.</p>' : '';
+        rejected.forEach(r => rejectedList.innerHTML += `<div class="rejected-item">Rule ${r.id}: ${r.text}</div>`);
+        document.getElementById('results-container').style.display = 'block';
+        window.scrollTo({ top: document.getElementById('results-container').offsetTop, behavior: 'smooth' });
+    }
+</script>
+</body>
+</html>
