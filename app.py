@@ -33,29 +33,6 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Hide header/footer */
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-
-    /* Hide Streamlit Cloud 'Manage App' watermark */
-    [data-testid="manage-app-button"] {display: none !important;}
-    
-    /* Target the App Creator Avatar explicitly */
-    [data-testid="appCreatorAvatar"] { 
-        display: none !important; 
-    }
-    
-    /* Target the obfuscated Streamlit Logo SVG wrapper */
-    div[class^="_link_"] { 
-        display: none !important; 
-    }
-    
-    /* Target the parent container of the new profile badge */
-    div[class^="_profileContainer_"] { 
-        display: none !important; 
-    }
-    
     /* --- BUTTON SAFE ZONES --- */
     .stButton {
         margin-top: 15px;
@@ -64,12 +41,15 @@ st.markdown("""
         justify-content: center;
     }
 
-    /* Force the specific kiosk iframe to cover the entire viewport without scrollbars */
-    iframe[title="kiosk_ui"] {
+    /* Force the kiosk iframe to cover the entire viewport without scrollbars */
+    .kiosk-wrapper iframe {
         width: 100vw !important;
         height: 100vh !important;
         border: none !important;
         display: block;
+        position: fixed;
+        top: 0; left: 0;
+        z-index: 1;
     }
     
     /* Prevent Streamlit background bleeding */
@@ -96,7 +76,9 @@ if "last_data" not in st.session_state:
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
+st.markdown('<div class="kiosk-wrapper">', unsafe_allow_html=True)
 component_value = kiosk_ui(score=st.session_state.score, key="kiosk")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # 6. Bi-directional Logic
 if component_value:
