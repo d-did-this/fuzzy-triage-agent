@@ -78,6 +78,8 @@ if "score" not in st.session_state:
     st.session_state.score = None
 if "last_data" not in st.session_state:
     st.session_state.last_data = None
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
@@ -179,13 +181,8 @@ def chat_popup():
         
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        current_egfr = "Unknown"
-        current_creat = "Unknown"
         current_tier = "Unknown"
-        
-        if st.session_state.last_data:
-            current_egfr = st.session_state.last_data.get('egfr', 'Unknown')
-            current_creat = st.session_state.last_data.get('creat', 'Unknown')
+        score = "Unknown"
         
         if st.session_state.score is not None and st.session_state.score >= 0:
             score = st.session_state.score
@@ -194,7 +191,9 @@ def chat_popup():
             elif score < 80: current_tier = "Moderate"
             else: current_tier = "Severe"
             
-        system_context = f"System Context: The patient currently has an eGFR of {current_egfr} and a Creatinine of {current_creat}. Their Fuzzy Risk Tier is {current_tier}. If they ask a question, you must use your tools to check their symptoms and drug safety based on these numbers, then proactively educate them.\n\nUser Question: "
+        full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k != "action"]) if st.session_state.last_data else "No lab data provided."
+            
+        system_context = f"System Context: You are a highly professional, empathetic triage nurse. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}). Rule 1: If the user just says hello, politely greet them back and ask how you can help them understand their report today. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\n\nUser Question: "
         
         full_prompt = system_context + prompt
         st.session_state.groq_chat_history.append({"role": "user", "content": full_prompt})
