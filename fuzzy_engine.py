@@ -3,14 +3,25 @@ import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 
 # 1. Define Variables
-hb = ctrl.Antecedent(np.arange(0, 25.1, 0.1), 'hb')
-wbc = ctrl.Antecedent(np.arange(0, 50.1, 0.1), 'wbc')
-plt = ctrl.Antecedent(np.arange(0, 1001, 1), 'plt')
-neu = ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'neu')
-mcv = ctrl.Antecedent(np.arange(50, 131, 1), 'mcv')
-rdw = ctrl.Antecedent(np.arange(10, 30.1, 0.1), 'rdw')
-egfr = ctrl.Antecedent(np.arange(0, 151, 1), 'egfr')
-creat = ctrl.Antecedent(np.arange(0, 401, 1), 'creat')
+variables = {
+    'hb': ctrl.Antecedent(np.arange(0, 25.1, 0.1), 'hb'),
+    'wbc': ctrl.Antecedent(np.arange(0, 50.1, 0.1), 'wbc'),
+    'plt': ctrl.Antecedent(np.arange(0, 1001, 1), 'plt'),
+    'neu': ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'neu'),
+    'mcv': ctrl.Antecedent(np.arange(50, 131, 1), 'mcv'),
+    'rdw': ctrl.Antecedent(np.arange(10, 30.1, 0.1), 'rdw'),
+    'egfr': ctrl.Antecedent(np.arange(0, 151, 1), 'egfr'),
+    'creat': ctrl.Antecedent(np.arange(0, 401, 1), 'creat')
+}
+
+hb = variables['hb']
+wbc = variables['wbc']
+plt = variables['plt']
+neu = variables['neu']
+mcv = variables['mcv']
+rdw = variables['rdw']
+egfr = variables['egfr']
+creat = variables['creat']
 
 risk = ctrl.Consequent(np.arange(0, 101, 1), 'risk')
 
@@ -54,82 +65,112 @@ risk['Mild'] = fuzz.trimf(risk.universe, [20, 40, 60])
 risk['Moderate'] = fuzz.trimf(risk.universe, [40, 60, 80])
 risk['Severe'] = fuzz.trapmf(risk.universe, [60, 80, 100, 100])
 
-# 3. The Knowledge Base (Exactly 50 Rules)
-rules = [
-    # 1. Baseline
-    ctrl.Rule(hb['Normal'] & wbc['Normal'] & plt['Normal'] & neu['Normal'] & mcv['Normal'] & rdw['Normal'] & egfr['Normal'] & creat['Normal'], risk['Normal']),
-    
-    # 2-16. Single Variable Deviations
-    ctrl.Rule(hb['Low'] & rdw['Normal'], risk['Mild']),
-    ctrl.Rule(hb['High'] & mcv['Normal'], risk['Normal']),
-    ctrl.Rule(wbc['Low'] & neu['Low'], risk['Severe']),
-    ctrl.Rule(wbc['High'] & neu['High'], risk['Moderate']),
-    ctrl.Rule(plt['Low'] & wbc['Normal'], risk['Mild']),
-    ctrl.Rule(plt['High'] & wbc['Normal'], risk['Normal']),
-    ctrl.Rule(neu['Low'] & wbc['Normal'], risk['Mild']),
-    ctrl.Rule(neu['High'], risk['Mild']),
-    ctrl.Rule(mcv['Low'], risk['Mild']),
-    ctrl.Rule(mcv['High'], risk['Mild']),
-    ctrl.Rule(rdw['High'], risk['Mild']),
-    ctrl.Rule(egfr['Moderate'], risk['Mild']),
-    ctrl.Rule(egfr['Severe'], risk['Severe']),
-    ctrl.Rule(creat['Moderate'], risk['Mild']),
-    ctrl.Rule(creat['Severe'], risk['Severe']),
-    
-    # 17-19. Infection Variations
-    ctrl.Rule(wbc['High'] & neu['High'], risk['Moderate']),
-    ctrl.Rule(wbc['High'] & neu['Low'], risk['Moderate']),
-    ctrl.Rule(wbc['Low'] & neu['Low'], risk['Severe']),
-    
-    # 20-23. Anemia Subtypes
-    ctrl.Rule(hb['Low'] & mcv['Low'], risk['Moderate']),
-    ctrl.Rule(hb['Low'] & mcv['High'], risk['Moderate']),
-    ctrl.Rule(hb['Low'] & rdw['High'], risk['Moderate']),
-    ctrl.Rule(hb['Normal'] & mcv['Low'] & rdw['High'], risk['Mild']),
-    
-    # 24-31. Renal Decline & Complications
-    ctrl.Rule(egfr['Moderate'] & creat['Moderate'], risk['Moderate']),
-    ctrl.Rule(egfr['Severe'] & creat['Moderate'], risk['Severe']),
-    ctrl.Rule(egfr['Moderate'] & creat['Severe'], risk['Severe']),
-    ctrl.Rule(egfr['Moderate'] & hb['Low'], risk['Moderate']),
-    ctrl.Rule(creat['Moderate'] & hb['Low'], risk['Moderate']),
-    ctrl.Rule(egfr['Severe'] & hb['Low'], risk['Severe']),
-    ctrl.Rule(egfr['Severe'] & creat['Normal'], risk['Severe']),
-    ctrl.Rule(egfr['Normal'] & creat['Severe'], risk['Severe']),
-    
-    # 32-39. Hematology Combinations
-    ctrl.Rule(hb['Low'] & plt['Low'], risk['Severe']),
-    ctrl.Rule(wbc['High'] & plt['Low'], risk['Severe']),
-    ctrl.Rule(wbc['Low'] & plt['Low'], risk['Severe']),
-    ctrl.Rule(plt['High'] & wbc['High'], risk['Moderate']),
-    ctrl.Rule(hb['Low'] & wbc['High'], risk['Moderate']),
-    ctrl.Rule(hb['High'] & plt['High'], risk['Moderate']),
-    ctrl.Rule(hb['Low'] & plt['High'], risk['Moderate']),
-    ctrl.Rule(plt['High'] & rdw['High'], risk['Moderate']),
-    
-    # 40-50. Combinatorial Edge Cases
-    ctrl.Rule(hb['Low'] & wbc['High'] & egfr['Moderate'], risk['Severe']),
-    ctrl.Rule(wbc['Low'] & egfr['Moderate'], risk['Moderate']),
-    ctrl.Rule(plt['Low'] & creat['Moderate'], risk['Severe']),
-    ctrl.Rule(wbc['High'] & neu['High'] & egfr['Normal'], risk['Moderate']),
-    ctrl.Rule(wbc['High'] & neu['High'] & creat['Normal'], risk['Moderate']),
-    ctrl.Rule(hb['Normal'] & wbc['High'] & plt['Low'] & egfr['Normal'], risk['Moderate']),
-    ctrl.Rule(hb['Low'] & wbc['Low'] & plt['Low'], risk['Severe']),
-    ctrl.Rule(hb['High'] & wbc['High'] & plt['High'], risk['Moderate']),
-    ctrl.Rule(egfr['Moderate'] & rdw['High'], risk['Moderate']),
-    ctrl.Rule(creat['Moderate'] & rdw['High'], risk['Moderate']),
-    ctrl.Rule(egfr['Severe'] & hb['Normal'] & wbc['Normal'] & plt['Normal'], risk['Severe'])
-]
+# 3. The Knowledge Base and Execution Context
+risk_sim = None
 
-assert len(rules) == 50, f"Expected 50 rules, but defined {len(rules)}"
+def build_system():
+    global risk_sim
+    rules = [
+        # 1. Baseline
+        ctrl.Rule(hb['Normal'] & wbc['Normal'] & plt['Normal'] & neu['Normal'] & mcv['Normal'] & rdw['Normal'] & egfr['Normal'] & creat['Normal'], risk['Normal']),
+        
+        # 2-16. Single Variable Deviations
+        ctrl.Rule(hb['Low'] & rdw['Normal'], risk['Mild']),
+        ctrl.Rule(hb['High'] & mcv['Normal'], risk['Normal']),
+        ctrl.Rule(wbc['Low'] & neu['Low'], risk['Severe']),
+        ctrl.Rule(wbc['High'] & neu['High'], risk['Moderate']),
+        ctrl.Rule(plt['Low'] & wbc['Normal'], risk['Mild']),
+        ctrl.Rule(plt['High'] & wbc['Normal'], risk['Normal']),
+        ctrl.Rule(neu['Low'] & wbc['Normal'], risk['Mild']),
+        ctrl.Rule(neu['High'], risk['Mild']),
+        ctrl.Rule(mcv['Low'], risk['Mild']),
+        ctrl.Rule(mcv['High'], risk['Mild']),
+        ctrl.Rule(rdw['High'], risk['Mild']),
+        ctrl.Rule(egfr['Moderate'], risk['Mild']),
+        ctrl.Rule(egfr['Severe'], risk['Severe']),
+        ctrl.Rule(creat['Moderate'], risk['Mild']),
+        ctrl.Rule(creat['Severe'], risk['Severe']),
+        
+        # 17-19. Infection Variations
+        ctrl.Rule(wbc['High'] & neu['High'], risk['Moderate']),
+        ctrl.Rule(wbc['High'] & neu['Low'], risk['Moderate']),
+        ctrl.Rule(wbc['Low'] & neu['Low'], risk['Severe']),
+        
+        # 20-23. Anemia Subtypes
+        ctrl.Rule(hb['Low'] & mcv['Low'], risk['Moderate']),
+        ctrl.Rule(hb['Low'] & mcv['High'], risk['Moderate']),
+        ctrl.Rule(hb['Low'] & rdw['High'], risk['Moderate']),
+        ctrl.Rule(hb['Normal'] & mcv['Low'] & rdw['High'], risk['Mild']),
+        
+        # 24-31. Renal Decline & Complications
+        ctrl.Rule(egfr['Moderate'] & creat['Moderate'], risk['Moderate']),
+        ctrl.Rule(egfr['Severe'] & creat['Moderate'], risk['Severe']),
+        ctrl.Rule(egfr['Moderate'] & creat['Severe'], risk['Severe']),
+        ctrl.Rule(egfr['Moderate'] & hb['Low'], risk['Moderate']),
+        ctrl.Rule(creat['Moderate'] & hb['Low'], risk['Moderate']),
+        ctrl.Rule(egfr['Severe'] & hb['Low'], risk['Severe']),
+        ctrl.Rule(egfr['Severe'] & creat['Normal'], risk['Severe']),
+        ctrl.Rule(egfr['Normal'] & creat['Severe'], risk['Severe']),
+        
+        # 32-39. Hematology Combinations
+        ctrl.Rule(hb['Low'] & plt['Low'], risk['Severe']),
+        ctrl.Rule(wbc['High'] & plt['Low'], risk['Severe']),
+        ctrl.Rule(wbc['Low'] & plt['Low'], risk['Severe']),
+        ctrl.Rule(plt['High'] & wbc['High'], risk['Moderate']),
+        ctrl.Rule(hb['Low'] & wbc['High'], risk['Moderate']),
+        ctrl.Rule(hb['High'] & plt['High'], risk['Moderate']),
+        ctrl.Rule(hb['Low'] & plt['High'], risk['Moderate']),
+        ctrl.Rule(plt['High'] & rdw['High'], risk['Moderate']),
+        
+        # 40-50. Combinatorial Edge Cases
+        ctrl.Rule(hb['Low'] & wbc['High'] & egfr['Moderate'], risk['Severe']),
+        ctrl.Rule(wbc['Low'] & egfr['Moderate'], risk['Moderate']),
+        ctrl.Rule(plt['Low'] & creat['Moderate'], risk['Severe']),
+        ctrl.Rule(wbc['High'] & neu['High'] & egfr['Normal'], risk['Moderate']),
+        ctrl.Rule(wbc['High'] & neu['High'] & creat['Normal'], risk['Moderate']),
+        ctrl.Rule(hb['Normal'] & wbc['High'] & plt['Low'] & egfr['Normal'], risk['Moderate']),
+        ctrl.Rule(hb['Low'] & wbc['Low'] & plt['Low'], risk['Severe']),
+        ctrl.Rule(hb['High'] & wbc['High'] & plt['High'], risk['Moderate']),
+        ctrl.Rule(egfr['Moderate'] & rdw['High'], risk['Moderate']),
+        ctrl.Rule(creat['Moderate'] & rdw['High'], risk['Moderate']),
+        ctrl.Rule(egfr['Severe'] & hb['Normal'] & wbc['Normal'] & plt['Normal'], risk['Severe'])
+    ]
 
-# 4. The Execution Function
-risk_ctrl = ctrl.ControlSystem(rules)
-risk_sim = ctrl.ControlSystemSimulation(risk_ctrl)
+    risk_ctrl = ctrl.ControlSystem(rules)
+    risk_sim = ctrl.ControlSystemSimulation(risk_ctrl)
+
+# Build initially
+build_system()
+
+def adjust_fis_thresholds(variable_name: str, category: str, new_range: list) -> str:
+    """
+    Dynamically update a membership function for a given variable.
+    Example: adjust_fis_thresholds('plt', 'Low', [0, 0, 180, 200])
+    """
+    if variable_name not in variables:
+        return f"Error: Variable {variable_name} not found."
+    
+    var = variables[variable_name]
+    
+    # Check if the shape is trapezoidal or triangular
+    if len(new_range) == 4:
+        var[category] = fuzz.trapmf(var.universe, new_range)
+    elif len(new_range) == 3:
+        var[category] = fuzz.trimf(var.universe, new_range)
+    else:
+        return f"Error: new_range must have 3 or 4 points, got {len(new_range)}."
+        
+    # Rebuild system so changes take effect
+    build_system()
+    return f"Successfully updated '{variable_name}' category '{category}' to {new_range}."
 
 def assess_patient(lab_dict: dict) -> float:
+    if risk_sim is None:
+        build_system()
+        
     for key, val in lab_dict.items():
-        risk_sim.input[key] = val
+        if key in risk_sim.input.keys():
+            risk_sim.input[key] = val
     try:
         risk_sim.compute()
         return risk_sim.output['risk']
@@ -140,7 +181,6 @@ def assess_patient(lab_dict: dict) -> float:
 # 5. Validation Execution
 if __name__ == '__main__':
     print("=== Fuzzy Inference System Engine Initialized ===")
-    print(f"Total Rules Loaded: {len(rules)}")
     
     # Test Cases
     patient_critical = {

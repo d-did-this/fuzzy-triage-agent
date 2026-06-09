@@ -4,11 +4,31 @@ import fuzzy_engine
 import urllib.parse
 import json
 import re
+import os
+import datetime
 from openai import OpenAI
 from agentic_tools import check_symptoms, check_drug_safety
 
+# Memory Log Helpers
+MEMORY_LOG_FILE = "memory_log.json"
+
+def get_memory_log():
+    if not os.path.exists(MEMORY_LOG_FILE):
+        return []
+    with open(MEMORY_LOG_FILE, "r") as f:
+        try:
+            return json.load(f)
+        except:
+            return []
+
+def append_memory_log(entry):
+    log = get_memory_log()
+    log.append(entry)
+    with open(MEMORY_LOG_FILE, "w") as f:
+        json.dump(log, f, indent=4)
+
 # 1. Page Config
-st.set_page_config(page_title="HealthAgent Pro", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="HealthAgent Pro", layout="wide", initial_sidebar_state="expanded")
 
 # Setup DeepSeek Agent
 try:
@@ -159,6 +179,43 @@ if "last_data" not in st.session_state:
 if "show_chat" not in st.session_state:
     st.session_state.show_chat = False
 
+# 4.5 Admin Sidebar (Agent Control)
+st.sidebar.title("🏥 Hospital Admin Controls")
+admin_pass = st.sidebar.text_input("Admin Password", type="password")
+
+health_alert = "None"
+if admin_pass == "admin123":
+    st.sidebar.success("Admin Mode Unlocked")
+    
+    health_alert = st.sidebar.text_area("Simulate Health Alert (e.g. Dengue Outbreak)", value="None")
+    
+    st.sidebar.subheader("Agent Reflection & Memory")
+    if st.sidebar.button("Simulate Rule Failure (Trigger Reflection)"):
+        if "agent_chat_history" not in st.session_state:
+            st.session_state.agent_chat_history = [
+                {"role": "system", "content": "You are a proactive educational triage nurse. You must use the tools provided to check symptoms and drug safety."}
+            ]
+        # Inject failure system prompt
+        st.session_state.agent_chat_history.append({
+            "role": "user",
+            "content": "SYSTEM ALERT: The hospital reports that your recent fuzzy threshold adjustments have resulted in a massive spike in false positives. Healthy patients are being flagged as severe. Please reflect on this failure and explain how you will reduce your threshold shift aggressiveness moving forward."
+        })
+        st.sidebar.warning("Failure scenario injected into agent's context!")
+        st.session_state.show_chat = True
+        st.rerun()
+        
+    st.sidebar.subheader("Agent Experience Log")
+    log_data = get_memory_log()
+    if log_data:
+        st.sidebar.dataframe(log_data)
+    else:
+        st.sidebar.info("No agent actions logged yet.")
+elif admin_pass:
+    st.sidebar.error("Incorrect password")
+    
+# Save health_alert to session state so chat_popup can access it
+st.session_state.health_alert = health_alert
+
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
 component_value = kiosk_ui(score=st.session_state.score, key="kiosk")
@@ -234,6 +291,36 @@ GROQ_TOOLS = [
                 "required": ["medication_name", "egfr_value"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "adjust_fis_thresholds",
+            "description": "Dynamically update a fuzzy logic membership function threshold for a specific variable. Used to react to outbreaks or health alerts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "variable_name": {
+                        "type": "string",
+                        "description": "The variable to adjust (e.g., 'plt', 'wbc', 'hb', 'egfr')"
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "The category to adjust (e.g., 'Low', 'Normal', 'High')"
+                    },
+                    "new_range": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The new boundary points, either 3 points (triangular) or 4 points (trapezoidal). Example: [0, 0, 180, 200]"
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Brief explanation of why this change is being made."
+                    }
+                },
+                "required": ["variable_name", "category", "new_range", "reasoning"]
+            }
+        }
     }
 ]
 
@@ -250,7 +337,7 @@ def chat_popup():
     
     if "agent_chat_history" not in st.session_state:
         st.session_state.agent_chat_history = [
-            {"role": "system", "content": "You are a proactive educational triage nurse. You must use the tools provided to check symptoms and drug safety."}
+            {"role": "system", "content": "You are a proactive educational triage nurse and Hospital System Manager. You have the ability to adjust clinical thresholds based on external health alerts using your tools."}
         ]
         
     messages_container = st.container(height=600)
@@ -277,7 +364,9 @@ def chat_popup():
             
         full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k != "action"]) if st.session_state.last_data else "No lab data provided."
             
-        system_context = f"System Context: You are a highly professional, empathetic triage nurse. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}). Rule 1: If the user just says hello, politely greet them back and ask how you can help them understand their report today. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\nCRITICAL RULE: You must NEVER output XML tags, <function>, or JSON blocks in your normal text responses. If you need to use a tool, use the native tool calling API. Your text response must ONLY be natural, conversational English.\n\nUser Question: "
+        current_health_alert = st.session_state.get("health_alert", "None")
+        
+        system_context = f"System Context: You are a highly professional, empathetic triage nurse and Hospital System Manager. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}).\n\nEXTERNAL HEALTH ALERT: {current_health_alert}\nIf the health alert requires proactive action, you must use your adjust_fis_thresholds tool to safely widen or narrow clinical parameters to adapt to the outbreak, before answering the user.\n\nRule 1: If the user just says hello, politely greet them back. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms, OR if the EXTERNAL HEALTH ALERT demands it. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\nCRITICAL RULE: You must NEVER output XML tags, <function>, or JSON blocks in your normal text responses. If you need to use a tool, use the native tool calling API. Your text response must ONLY be natural, conversational English.\n\nUser Question: "
         
         full_prompt = system_context + prompt
         st.session_state.agent_chat_history.append({"role": "user", "content": full_prompt})
@@ -315,6 +404,20 @@ def chat_popup():
                                     medication_name=function_args.get("medication_name", ""), 
                                     egfr_value=function_args.get("egfr_value", 0)
                                 )
+                            elif function_name == "adjust_fis_thresholds":
+                                var_name = function_args.get("variable_name")
+                                cat = function_args.get("category")
+                                n_range = function_args.get("new_range")
+                                reason = function_args.get("reasoning", "No reason provided.")
+                                
+                                function_response = fuzzy_engine.adjust_fis_thresholds(var_name, cat, n_range)
+                                
+                                append_memory_log({
+                                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "action": f"Adjusted {var_name} [{cat}] to {n_range}",
+                                    "reason": reason,
+                                    "result": function_response
+                                })
                             else:
                                 function_response = "Unknown tool"
                                 
