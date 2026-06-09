@@ -429,8 +429,7 @@ def chat_popup():
         st.session_state.agent_chat_history.append({"role": "user", "content": full_prompt})
         
         with messages_container.chat_message("assistant"):
-            with st.spinner("👩‍⚕️ AI Nurse is analyzing your results..."):
-                if deepseek_client is not None:
+            if deepseek_client is not None:
                 try:
                     response = deepseek_client.chat.completions.create(
                         model="deepseek-chat",
