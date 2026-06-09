@@ -170,10 +170,17 @@ def assess_patient(lab_dict: dict) -> float:
         
     for key, val in lab_dict.items():
         if key in risk_sim.input.keys():
-            risk_sim.input[key] = val
+            try:
+                risk_sim.input[key] = float(val)
+            except (ValueError, TypeError):
+                pass
     try:
         risk_sim.compute()
-        return risk_sim.output['risk']
+        if 'risk' in risk_sim.output:
+            return risk_sim.output['risk']
+        else:
+            print("No rules fired, risk not calculated.")
+            return -1.0
     except Exception as e:
         print(f"Error computing risk for patient: {e}")
         return -1.0
