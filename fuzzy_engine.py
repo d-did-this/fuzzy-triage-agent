@@ -169,7 +169,7 @@ def assess_patient(lab_dict: dict) -> float:
         build_system()
         
     for key, val in lab_dict.items():
-        if key in risk_sim.input.keys():
+        if key in variables:
             try:
                 risk_sim.input[key] = float(val)
             except (ValueError, TypeError):
