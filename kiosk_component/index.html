@@ -513,6 +513,20 @@
 <div class="ambient-orb orb-2"></div>
 
 <div class="kiosk-container">
+    <button onclick="openAdminLogin()" style="position: absolute; top: 20px; left: 20px; z-index: 9999; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s;">
+        🛡️ Admin
+    </button>
+    
+    <!-- Admin Modal -->
+    <div id="admin-modal" style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 10000; align-items: center; justify-content: center;">
+       <div style="background: linear-gradient(145deg, #1e293b, #0f172a); padding: 40px; border-radius: 24px; width: 400px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+           <h2 style="margin-top: 0; font-size: 28px; text-align: center; color: white;">System Admin</h2>
+           <input type="text" id="admin_user" placeholder="Username" style="width:100%; margin-bottom: 20px; text-align: left; padding: 15px 20px; font-size: 18px;">
+           <input type="password" id="admin_pass" placeholder="Password" style="width:100%; margin-bottom: 30px; text-align: left; padding: 15px 20px; font-size: 18px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 12px;">
+           <button class="btn btn-next" style="width: 100%; padding: 15px;" onclick="submitAdmin()">Login</button>
+           <button class="btn btn-back" style="width: 100%; padding: 15px; margin-top: 15px;" onclick="document.getElementById('admin-modal').style.display='none'">Cancel</button>
+       </div>
+    </div>
     
     <div class="header">
         <div style="display: flex; align-items: center; gap: 20px; position: relative;">
@@ -1036,6 +1050,7 @@
         document.getElementById('risk-badge').style.backgroundColor = "transparent";
 
         let data = {
+            name: document.getElementById('name').value.trim() || "Patient",
             hb: parseFloat(document.getElementById('hb_text').value),
             wbc: parseFloat(document.getElementById('wbc_text').value),
             plt: parseFloat(document.getElementById('plt_text').value),
@@ -1050,9 +1065,26 @@
         isWaitingForScore = true;
         Streamlit.setComponentValue(data);
     }
+    
+    function openAdminLogin() {
+        document.getElementById('admin-modal').style.display = 'flex';
+        document.getElementById('admin_user').focus();
+    }
+    
+    function submitAdmin() {
+        let p = document.getElementById('admin_pass').value;
+        if(p === "admin123") {
+            document.getElementById('admin-modal').style.display = 'none';
+            document.getElementById('admin_pass').value = '';
+            Streamlit.setComponentValue({action: "open_admin"});
+        } else {
+            alert("Invalid credentials");
+        }
+    }
 
     function openChat() {
         let data = {
+            name: document.getElementById('name').value.trim() || "Patient",
             hb: parseFloat(document.getElementById('hb_text').value),
             wbc: parseFloat(document.getElementById('wbc_text').value),
             plt: parseFloat(document.getElementById('plt_text').value),

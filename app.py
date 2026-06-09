@@ -62,23 +62,35 @@ st.markdown("""
     /* Style the floating Ai Nurse button on the main page */
     .stApp .stButton > button {
         position: fixed !important;
-        top: 20px !important;
-        right: 20px !important;
+        bottom: 40px !important;
+        right: 40px !important;
+        top: auto !important;
         z-index: 999999 !important;
         background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
         color: white !important;
         border: none !important;
         box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
-        border-radius: 30px !important;
+        border-radius: 50% !important;
         font-weight: 600 !important;
-        padding: 10px 24px !important;
+        padding: 0 !important;
+        width: 70px !important;
+        height: 70px !important;
+        font-size: 30px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         transition: transform 0.2s, box-shadow 0.2s !important;
-        width: auto !important;
+        animation: pulseFAB 2s infinite !important;
+    }
+    
+    @keyframes pulseFAB {
+        0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+        70% { box-shadow: 0 0 0 20px rgba(37, 99, 235, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
     }
     
     .stApp .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6) !important;
+        transform: scale(1.1) !important;
     }
     
     /* RESET the close button styles inside the dialog so it stays normal! */
@@ -130,6 +142,7 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.1) !important;
         border-right: none !important;
         animation: slideInRight 0.3s ease-out forwards;
+        transition: width 0.3s ease-out;
     }
 
     @keyframes slideInRight {
@@ -146,8 +159,10 @@ st.markdown("""
     [data-testid="stChatMessage"] {
         background-color: #1e293b;
         border-radius: 15px;
-        padding: 10px;
-        margin-bottom: 10px;
+        padding: 20px;
+        line-height: 1.6;
+        font-size: 16px;
+        margin-bottom: 15px;
         border: 1px solid rgba(255,255,255,0.05);
     }
     
@@ -178,19 +193,32 @@ if "last_data" not in st.session_state:
     st.session_state.last_data = None
 if "show_chat" not in st.session_state:
     st.session_state.show_chat = False
+if "show_admin" not in st.session_state:
+    st.session_state.show_admin = False
+if "fullscreen" not in st.session_state:
+    st.session_state.fullscreen = False
+if "preset_prompt" not in st.session_state:
+    st.session_state.preset_prompt = None
+
+if st.session_state.fullscreen:
+    st.markdown("""
+    <style>
+        div[role="dialog"] {
+            width: 100vw !important;
+            border-radius: 0 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 # 4.5 Admin Sidebar (Agent Control)
-st.sidebar.title("🏥 Hospital Admin Controls")
-admin_pass = st.sidebar.text_input("Admin Password", type="password")
-
-health_alert = "None"
-if admin_pass == "admin123":
-    st.sidebar.success("Admin Mode Unlocked")
+@st.dialog("🏥 System Admin Panel", width="large")
+def admin_popup():
+    st.success("Admin Mode Unlocked")
     
-    health_alert = st.sidebar.text_area("Simulate Health Alert (e.g. Dengue Outbreak)", value="None")
+    st.session_state.health_alert = st.text_area("Simulate Health Alert (e.g. Dengue Outbreak)", value=st.session_state.get("health_alert", "None"))
     
-    st.sidebar.subheader("Agent Reflection & Memory")
-    if st.sidebar.button("Simulate Rule Failure (Trigger Reflection)"):
+    st.subheader("Agent Reflection & Memory")
+    if st.button("Simulate Rule Failure (Trigger Reflection)"):
         if "agent_chat_history" not in st.session_state:
             st.session_state.agent_chat_history = [
                 {"role": "system", "content": "You are a proactive educational triage nurse. You must use the tools provided to check symptoms and drug safety."}
@@ -200,21 +228,21 @@ if admin_pass == "admin123":
             "role": "user",
             "content": "SYSTEM ALERT: The hospital reports that your recent fuzzy threshold adjustments have resulted in a massive spike in false positives. Healthy patients are being flagged as severe. Please reflect on this failure and explain how you will reduce your threshold shift aggressiveness moving forward."
         })
-        st.sidebar.warning("Failure scenario injected into agent's context!")
+        st.warning("Failure scenario injected into agent's context!")
+        st.session_state.show_admin = False
         st.session_state.show_chat = True
         st.rerun()
         
-    st.sidebar.subheader("Agent Experience Log")
+    st.subheader("Agent Experience Log")
     log_data = get_memory_log()
     if log_data:
-        st.sidebar.dataframe(log_data)
+        st.dataframe(log_data, use_container_width=True)
     else:
-        st.sidebar.info("No agent actions logged yet.")
-elif admin_pass:
-    st.sidebar.error("Incorrect password")
+        st.info("No agent actions logged yet.")
     
-# Save health_alert to session state so chat_popup can access it
-st.session_state.health_alert = health_alert
+    if st.button("Close Admin Panel"):
+        st.session_state.show_admin = False
+        st.rerun()
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
@@ -231,11 +259,14 @@ if component_value:
             st.session_state.chat_opened = False # flag to trigger JS open
             st.session_state.last_data = component_value
             st.rerun()
+        elif action == "open_admin":
+            st.session_state.show_admin = True
+            st.rerun()
         else:
             # Process the 8 parameters through the mathematical Fuzzy Engine
             try:
-                # filter out 'action' key
-                lab_data = {k: v for k, v in component_value.items() if k != "action"}
+                # filter out 'action' and 'name'
+                lab_data = {k: v for k, v in component_value.items() if k not in ["action", "name"]}
                 new_score = fuzzy_engine.assess_patient(lab_data)
                 st.session_state.score = new_score
             except Exception as e:
@@ -247,7 +278,7 @@ if component_value:
             st.rerun()
 
 # Floating Native Chat Button
-if st.button("🤖 AI Nurse"):
+if st.button("💬"):
     st.session_state.show_chat = True
     st.rerun()
 
@@ -324,11 +355,17 @@ GROQ_TOOLS = [
     }
 ]
 
-@st.dialog("🩺 AI Triage Nurse", width="large")
+@st.dialog(" ", width="large")
 def chat_popup():
-    col1, col2 = st.columns([8, 2])
+    col1, col2, col3 = st.columns([6, 1, 1])
+    with col1:
+        st.markdown("<h3 style='margin:0; padding:0; padding-left:10px; color:#3b82f6;'>🩺 AI Triage Nurse</h3>", unsafe_allow_html=True)
     with col2:
-        if st.button("❌ Close", use_container_width=True):
+        if st.button("⛶", use_container_width=True):
+            st.session_state.fullscreen = not st.session_state.fullscreen
+            st.rerun()
+    with col3:
+        if st.button("✕", use_container_width=True):
             st.session_state.show_chat = False
             st.rerun()
             
@@ -340,13 +377,32 @@ def chat_popup():
             {"role": "system", "content": "You are a proactive educational triage nurse and Hospital System Manager. You have the ability to adjust clinical thresholds based on external health alerts using your tools."}
         ]
         
-    messages_container = st.container(height=600)
+    messages_container = st.container(height=500)
     
     for message in st.session_state.messages:
         with messages_container.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ask a question about your symptoms or medications..."):
+    # Presets
+    st.write("")
+    c1, c2, c3 = st.columns(3)
+    if c1.button("📊 Explain my score"):
+        st.session_state.preset_prompt = "Can you explain my risk score and what it means?"
+        st.rerun()
+    if c2.button("🥗 Dietary advice"):
+        st.session_state.preset_prompt = "What dietary changes should I make based on these labs?"
+        st.rerun()
+    if c3.button("⚠️ Any red flags?"):
+        st.session_state.preset_prompt = "Are there any critical red flags in my blood work?"
+        st.rerun()
+
+    prompt = st.chat_input("Ask a question about your symptoms...")
+    
+    if st.session_state.preset_prompt:
+        prompt = st.session_state.preset_prompt
+        st.session_state.preset_prompt = None
+        
+    if prompt:
         with messages_container.chat_message("user"):
             st.markdown(prompt)
         
@@ -362,17 +418,19 @@ def chat_popup():
             elif score < 80: current_tier = "Moderate"
             else: current_tier = "Severe"
             
-        full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k != "action"]) if st.session_state.last_data else "No lab data provided."
+        patient_name = st.session_state.last_data.get("name", "Patient") if st.session_state.last_data else "Patient"
+        full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k not in ["action", "name"]]) if st.session_state.last_data else "No lab data provided."
             
         current_health_alert = st.session_state.get("health_alert", "None")
         
-        system_context = f"System Context: You are a highly professional, empathetic triage nurse and Hospital System Manager. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}).\n\nEXTERNAL HEALTH ALERT: {current_health_alert}\nIf the health alert requires proactive action, you must use your adjust_fis_thresholds tool to safely widen or narrow clinical parameters to adapt to the outbreak, before answering the user.\n\nRule 1: If the user just says hello, politely greet them back. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms, OR if the EXTERNAL HEALTH ALERT demands it. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\nCRITICAL RULE: You must NEVER output XML tags, <function>, or JSON blocks in your normal text responses. If you need to use a tool, use the native tool calling API. Your text response must ONLY be natural, conversational English.\n\nUser Question: "
+        system_context = f"System Context: You are a highly professional, empathetic triage nurse and Hospital System Manager. The patient's name is {patient_name}. The patient's complete 8-parameter laboratory report is as follows: [{full_lab_report}]. Their overall calculated Risk Score is {score} ({current_tier}).\n\nEXTERNAL HEALTH ALERT: {current_health_alert}\nIf the health alert requires proactive action, you must use your adjust_fis_thresholds tool to safely widen or narrow clinical parameters to adapt to the outbreak, before answering the user.\n\nRule 1: If the user just says hello, politely greet them back by name. DO NOT call any tools for simple greetings. Rule 2: ONLY use your tools if the user asks a medical question, mentions medications, or complains of symptoms, OR if the EXTERNAL HEALTH ALERT demands it. Rule 3: Base all of your advice on the full lab report provided above. If a value is critically high or low, prioritize discussing it. Rule 4: Always provide your final answer in natural, warm English. NEVER output raw JSON or tool names.\nCRITICAL RULE: You must NEVER output XML tags, <function>, or JSON blocks in your normal text responses. If you need to use a tool, use the native tool calling API. Your text response must ONLY be natural, conversational English.\n\nUser Question: "
         
         full_prompt = system_context + prompt
         st.session_state.agent_chat_history.append({"role": "user", "content": full_prompt})
         
         with messages_container.chat_message("assistant"):
-            if deepseek_client is not None:
+            with st.spinner("👩‍⚕️ AI Nurse is analyzing your results..."):
+                if deepseek_client is not None:
                 try:
                     response = deepseek_client.chat.completions.create(
                         model="deepseek-chat",
@@ -456,8 +514,11 @@ def chat_popup():
                 except Exception as e:
                     st.error(f"Error communicating with agent: {e}")
                     st.session_state.messages.append({"role": "assistant", "content": f"**System Error:** {e}"})
-            else:
-                st.warning("DeepSeek client is not configured.")
+                else:
+                    st.warning("DeepSeek client is not configured.")
+
+if st.session_state.get("show_admin", False):
+    admin_popup()
 
 if st.session_state.get("show_chat", False):
     chat_popup()
