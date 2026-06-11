@@ -985,7 +985,7 @@
         const args = event.data.args;
         if (args.score !== null && args.score !== undefined && isWaitingForScore) {
             isWaitingForScore = false;
-            renderFinalReport(args.score);
+            renderFinalReport(args.score, args.action_plan);
         }
         
         if (args.chat_response && args.chat_id && args.chat_id !== window.lastChatId) {
@@ -1106,9 +1106,10 @@
     function generateReport() {
         currentStep = 4;
         updateUI();
-        document.getElementById('risk-score').innerText = "...";
-        document.getElementById('risk-badge').innerText = "COMPUTING AI RISK...";
+        document.getElementById('risk-score').innerHTML = "<div style='font-size:24px; animation: pulse 1s infinite; margin-top:20px;'>Analyzing...</div>";
+        document.getElementById('risk-badge').innerText = "AI AGENT GENERATING REPORT...";
         document.getElementById('risk-badge').style.backgroundColor = "transparent";
+        document.getElementById('action-list').innerHTML = "<li class='finding-item'><div class='finding-content'><div class='dots' style='font-size:20px; color:#3b82f6;'>🧠 AI is generating your personalized Action Plan...</div></div></li>";
 
         let data = {
             name: document.getElementById('name').value.trim() || "Patient",
@@ -1195,7 +1196,7 @@
         Streamlit.setComponentValue(data);
     }
 
-    function renderFinalReport(pythonScore) {
+    function renderFinalReport(pythonScore, actionPlan) {
 
         const params = [
             { 
@@ -1377,6 +1378,19 @@
         if (!badHtml) badHtml = `<li class="finding-item" style="opacity:0.5"><div class="finding-content"><p>None detected.</p></div></li>`;
         if (!criticalHtml) criticalHtml = `<li class="finding-item" style="opacity:0.5"><div class="finding-content"><p>None detected.</p></div></li>`;
         if (!actionHtml) actionHtml = `<li class="finding-item safe"><div class="finding-icon">🛡️</div><div class="finding-content"><h4 style="color:var(--safe)">Maintain Health</h4><p>No actionable deviations. Keep up the good work.</p></div></li>`;
+        
+        // Override with Agentic AI Action Plan if available
+        if (actionPlan) {
+            actionHtml = `<li class="finding-item safe" style="border-color: #a78bfa; background: rgba(167, 139, 250, 0.1);">
+                <div class="finding-icon" style="font-size:36px;">🤖</div>
+                <div class="finding-content" style="width: 100%;">
+                    <h4 style="color: #a78bfa; font-size: 24px; margin-bottom: 10px;">Agentic Recommended Actions:</h4>
+                    <ul style="margin: 0; padding-left: 20px; color: #e2e8f0; font-size: 18px; line-height: 1.6;">
+                        ${actionPlan}
+                    </ul>
+                </div>
+            </li>`;
+        }
 
         // Apply UI logic
         let badgeText, colorHex, colorRgba;

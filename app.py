@@ -203,6 +203,8 @@ if "chat_response" not in st.session_state:
     st.session_state.chat_response = None
 if "chat_id" not in st.session_state:
     st.session_state.chat_id = None
+if "action_plan" not in st.session_state:
+    st.session_state.action_plan = None
 
 if st.session_state.fullscreen:
     st.markdown("""
@@ -250,7 +252,7 @@ def admin_popup():
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
-component_value = kiosk_ui(score=st.session_state.score, chat_response=st.session_state.chat_response, chat_id=st.session_state.chat_id, key="kiosk")
+component_value = kiosk_ui(score=st.session_state.score, chat_response=st.session_state.chat_response, chat_id=st.session_state.chat_id, action_plan=st.session_state.action_plan, key="kiosk")
 
 # 6. Bi-directional Logic
 if component_value:
@@ -353,6 +355,30 @@ if component_value:
                 lab_data = {k: v for k, v in component_value.items() if k not in ["action", "name"]}
                 new_score = fuzzy_engine.assess_patient(lab_data)
                 st.session_state.score = new_score
+                
+                if component_value.get("action") == "generate":
+                    if deepseek_client is not None:
+                        try:
+                            lab_report_str = ", ".join([f"{k.upper()}: {v}" for k, v in lab_data.items()])
+                            system_msg = "You are an AI Triage Agent. Given a patient's lab report and their Fuzzy Risk Score (0-100), output a highly concise, bulleted list of 2-4 critical recommended clinical actions. Output ONLY the HTML `<li>` tags containing the text (e.g. `<li>Drink more water</li>`). No markdown blocks, no intro, no outro."
+                            prompt = f"Risk Score: {new_score}\nLab Report: {lab_report_str}"
+                            response = deepseek_client.chat.completions.create(
+                                model="deepseek-chat",
+                                messages=[
+                                    {"role": "system", "content": system_msg},
+                                    {"role": "user", "content": prompt}
+                                ]
+                            )
+                            raw_html = response.choices[0].message.content.strip()
+                            if raw_html.startswith("```html"): raw_html = raw_html[7:]
+                            if raw_html.startswith("```"): raw_html = raw_html[3:]
+                            if raw_html.endswith("```"): raw_html = raw_html[:-3]
+                            st.session_state.action_plan = raw_html.strip()
+                        except Exception as e:
+                            st.session_state.action_plan = f"<li>Error generating AI action plan: {e}</li>"
+                    else:
+                        st.session_state.action_plan = "<li>DeepSeek client not configured. Defaulting to standard protocols.</li>"
+                        
             except Exception as e:
                 st.session_state.score = -1
                 print(f"Error calculating score: {e}")
