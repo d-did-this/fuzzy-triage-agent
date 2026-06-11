@@ -352,7 +352,7 @@ if component_value:
             # Process the 8 parameters through the mathematical Fuzzy Engine
             try:
                 # filter out 'action' and 'name'
-                lab_data = {k: v for k, v in component_value.items() if k not in ["action", "name"]}
+                lab_data = {k: v for k, v in component_value.items() if k not in ["action", "name", "run_id"]}
                 new_score = fuzzy_engine.assess_patient(lab_data)
                 st.session_state.score = new_score
                 
