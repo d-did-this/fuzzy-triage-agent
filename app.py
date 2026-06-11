@@ -252,7 +252,7 @@ def admin_popup():
 
 # 5. Render Component
 # This renders the Kiosk UI. If we have a computed score, we pass it back into the Javascript args.score
-component_value = kiosk_ui(score=st.session_state.score, chat_response=st.session_state.chat_response, chat_id=st.session_state.chat_id, action_plan=st.session_state.action_plan, key="kiosk")
+component_value = kiosk_ui(score=st.session_state.score, chat_response=st.session_state.chat_response, chat_id=st.session_state.chat_id, action_plan=st.session_state.action_plan, logs=get_memory_log(), rules=fuzzy_engine.get_thresholds(), key="kiosk")
 
 # 6. Bi-directional Logic
 if component_value:
@@ -267,6 +267,10 @@ if component_value:
             st.rerun()
         elif action == "open_admin":
             pass # Ignored since Admin is HTML
+        elif action == "set_health_alert":
+            st.session_state.health_alert = component_value.get("health_alert", "None")
+            st.session_state.last_data = component_value
+            st.rerun()
         elif action == "simulate_failure":
             if "agent_chat_history" not in st.session_state:
                 st.session_state.agent_chat_history = [
