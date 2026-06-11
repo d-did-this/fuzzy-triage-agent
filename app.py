@@ -283,6 +283,7 @@ if component_value:
             st.session_state.chat_response = "I have received a System Alert regarding my recent threshold adjustments. I am currently reflecting on this failure and will prioritize safety."
             import uuid
             st.session_state.chat_id = str(uuid.uuid4())
+            st.session_state.last_data = component_value
             st.rerun()
         elif action == "chat_message":
             prompt = component_value.get("prompt", "")
@@ -351,6 +352,7 @@ if component_value:
                 
             import uuid
             st.session_state.chat_id = str(uuid.uuid4())
+            st.session_state.last_data = component_value
             st.rerun()
         else:
             # Process the 8 parameters through the mathematical Fuzzy Engine
