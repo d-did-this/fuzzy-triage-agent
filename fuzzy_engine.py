@@ -229,7 +229,8 @@ def get_thresholds():
                 universe = var.universe
                 # Find indices where mf > 0 and mf == 1
                 gt_0 = np.where(mf > 0.001)[0]
-                eq_1 = np.where(mf >= 0.999)[0]
+                max_val = np.max(mf)
+                eq_1 = np.where(mf >= (max_val - 0.001))[0]
                 
                 if len(gt_0) == 0 or len(eq_1) == 0:
                     thresholds[var_name][cat_name] = "Unknown"
