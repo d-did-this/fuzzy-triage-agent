@@ -1054,10 +1054,10 @@
 
                 <!-- Card 4: Recommended Actions (Full Width - Full Column List) -->
                 <div class="dash-card full-width">
-                    <h2 style="font-size: 32px; margin-bottom: 20px;"><strong>Recommended</strong> Actions</h2>
-                    <ul class="findings-list full-column" id="action-list">
+                    <h2 style="font-size: 32px; margin-bottom: 20px;"><strong>AI Recommended</strong> Actions</h2>
+                    <div id="action-list" style="width: 100%;">
                         <!-- Populated by JS -->
-                    </ul>
+                    </div>
                 </div>
 
                 <!-- Card 5: Overall Report (Full Width) -->
@@ -1352,7 +1352,7 @@
         } else {
             tbody.innerHTML = '<tr><td colspan="3" style="padding:20px; text-align:center;">No rules found.</td></tr>';
         }
-        document.getElementById('admin-rules-count').innerText = `Displaying ${ruleCount} Rule Thresholds`;
+        document.getElementById('admin-rules-count').innerText = `Displaying ${ruleCount} Fuzzy Category Thresholds`;
         document.getElementById('admin-rules-modal').style.display = 'flex';
     }
 

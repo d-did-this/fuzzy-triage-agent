@@ -364,7 +364,24 @@ if component_value:
                     if deepseek_client is not None:
                         try:
                             lab_report_str = ", ".join([f"{k.upper()}: {v}" for k, v in lab_data.items()])
-                            system_msg = "You are an AI Triage Agent. Given a patient's lab report and their Fuzzy Risk Score (0-100), output a highly concise, bulleted list of 2-4 critical recommended clinical actions. Output ONLY the HTML `<li>` tags containing the text (e.g. `<li>Drink more water</li>`). No markdown blocks, no intro, no outro."
+                            system_msg = """You are an AI Triage Agent. Given a patient's lab report and their Fuzzy Risk Score (0-100), output an HTML action plan.
+Follow EXACTLY this structure, returning ONLY valid HTML:
+<div style="background: rgba(15,23,42,0.6); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+    <h3 style="margin:0 0 10px 0; color: #38bdf8;">Risk Score Analysis</h3>
+    <p style="margin:0; color:#cbd5e1; line-height: 1.5;">[Brief explanation of why the overall Risk Score is what it is based on the report]</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+    <!-- For EVERY problematic (abnormal) biomarker, generate a card -->
+    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border-left: 4px solid #ef4444;">
+        <h4 style="margin:0 0 5px 0; color: white;">[Biomarker Name] <span style="color: #ef4444; font-size: 14px;">([High/Low])</span></h4>
+        <p style="margin:0 0 10px 0; color:#cbd5e1; font-size: 13px;">[Brief explanation of why this specific value is problematic]</p>
+        <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+            <strong style="color: #10b981; font-size: 12px; text-transform: uppercase;">Recommended Action</strong>
+            <p style="margin: 5px 0 0 0; color: #f8fafc; font-size: 13px;">[1 specific action step]</p>
+        </div>
+    </div>
+</div>
+Do not include markdown codeblocks (```html), just the raw HTML code. Do not output anything else."""
                             prompt = f"Risk Score: {new_score}\nLab Report: {lab_report_str}"
                             response = deepseek_client.chat.completions.create(
                                 model="deepseek-chat",
