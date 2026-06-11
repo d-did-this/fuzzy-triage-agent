@@ -632,3 +632,5 @@ if st.session_state.get("show_admin", False):
 
 if st.session_state.get("show_chat", False):
     chat_popup()
+
+# Trigger reload
