@@ -361,10 +361,7 @@ if component_value:
             st.session_state.last_data = component_value
             st.rerun()
 
-# Floating Native Chat Button
-if st.button("💬"):
-    st.session_state.show_chat = True
-    st.rerun()
+
 
 # 7. Agentic Chatbot Interface (Popup)
 # Define Groq Tools Schema
