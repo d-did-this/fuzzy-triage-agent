@@ -372,6 +372,7 @@ Follow EXACTLY this structure, returning ONLY valid HTML:
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
     <!-- For EVERY problematic (abnormal) biomarker, generate a card -->
+    <!-- IF ALL BIOMARKERS ARE NORMAL, DO NOT OUTPUT ANY CARDS HERE. LEAVE THIS GRID EMPTY. -->
     <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border-left: 4px solid #ef4444;">
         <h4 style="margin:0 0 5px 0; color: white;">[Biomarker Name] <span style="color: #ef4444; font-size: 14px;">([High/Low])</span></h4>
         <p style="margin:0 0 10px 0; color:#cbd5e1; font-size: 13px;">[Brief explanation of why this specific value is problematic]</p>
@@ -381,7 +382,7 @@ Follow EXACTLY this structure, returning ONLY valid HTML:
         </div>
     </div>
 </div>
-Do not include markdown codeblocks (```html), just the raw HTML code. Do not output anything else."""
+CRITICAL RULE: DO NOT output any internal thoughts, reasoning, conversational text, or markdown codeblocks (```html). Output NOTHING but the raw HTML code."""
                             prompt = f"Risk Score: {new_score}\nLab Report: {lab_report_str}"
                             response = deepseek_client.chat.completions.create(
                                 model="deepseek-chat",
