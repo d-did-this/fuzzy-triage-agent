@@ -9,6 +9,78 @@ import datetime
 from openai import OpenAI
 from agentic_tools import check_symptoms, check_drug_safety
 
+# Define Groq Tools Schema
+GROQ_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "check_symptoms",
+            "description": "Returns common symptoms based on eGFR thresholds.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "egfr_value": {
+                        "type": "number",
+                        "description": "The eGFR value of the patient"
+                    }
+                },
+                "required": ["egfr_value"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_drug_safety",
+            "description": "Returns warnings if nephrotoxic drugs are mentioned when eGFR < 60.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "medication_name": {
+                        "type": "string",
+                        "description": "The name of the medication to check"
+                    },
+                    "egfr_value": {
+                        "type": "number",
+                        "description": "The eGFR value of the patient"
+                    }
+                },
+                "required": ["medication_name", "egfr_value"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "adjust_fis_thresholds",
+            "description": "Dynamically update a fuzzy logic membership function threshold for a specific variable. Used to react to outbreaks or health alerts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "variable_name": {
+                        "type": "string",
+                        "description": "The variable to adjust (e.g., 'plt', 'wbc', 'hb', 'egfr')"
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "The category to adjust (e.g., 'Low', 'Normal', 'High')"
+                    },
+                    "new_range": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The new boundary points, either 3 points (triangular) or 4 points (trapezoidal). Example: [0, 0, 180, 200]"
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Brief explanation of why this change is being made."
+                    }
+                },
+                "required": ["variable_name", "category", "new_range", "reasoning"]
+            }
+        }
+    }
+]
+
 # Memory Log Helpers
 MEMORY_LOG_FILE = "memory_log.json"
 
@@ -414,77 +486,6 @@ CRITICAL RULE: DO NOT output any internal thoughts, reasoning, conversational te
 
 
 # 7. Agentic Chatbot Interface (Popup)
-# Define Groq Tools Schema
-GROQ_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "check_symptoms",
-            "description": "Returns common symptoms based on eGFR thresholds.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "egfr_value": {
-                        "type": "number",
-                        "description": "The eGFR value of the patient"
-                    }
-                },
-                "required": ["egfr_value"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "check_drug_safety",
-            "description": "Returns warnings if nephrotoxic drugs are mentioned when eGFR < 60.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "medication_name": {
-                        "type": "string",
-                        "description": "The name of the medication to check"
-                    },
-                    "egfr_value": {
-                        "type": "number",
-                        "description": "The eGFR value of the patient"
-                    }
-                },
-                "required": ["medication_name", "egfr_value"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "adjust_fis_thresholds",
-            "description": "Dynamically update a fuzzy logic membership function threshold for a specific variable. Used to react to outbreaks or health alerts.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "variable_name": {
-                        "type": "string",
-                        "description": "The variable to adjust (e.g., 'plt', 'wbc', 'hb', 'egfr')"
-                    },
-                    "category": {
-                        "type": "string",
-                        "description": "The category to adjust (e.g., 'Low', 'Normal', 'High')"
-                    },
-                    "new_range": {
-                        "type": "array",
-                        "items": {"type": "number"},
-                        "description": "The new boundary points, either 3 points (triangular) or 4 points (trapezoidal). Example: [0, 0, 180, 200]"
-                    },
-                    "reasoning": {
-                        "type": "string",
-                        "description": "Brief explanation of why this change is being made."
-                    }
-                },
-                "required": ["variable_name", "category", "new_range", "reasoning"]
-            }
-        }
-    }
-]
 
 @st.dialog(" ", width="large")
 def chat_popup():
