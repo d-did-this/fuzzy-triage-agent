@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiosk Health Agent</title>
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script>
     let demoChartInit = false;
     function toggleDemoPanel() {
         const panel = document.getElementById('demo-panel');
@@ -1151,7 +1153,7 @@
             window.lastChatId = args.chat_id;
             document.getElementById('chat-thinking').style.display = 'none';
             let chatDiv = document.getElementById('chat-messages');
-            chatDiv.innerHTML += `<div class="chat-bubble assistant">${args.chat_response}</div>`;
+            chatDiv.innerHTML += `<div class="chat-bubble assistant">${marked.parse(args.chat_response)}</div>`;
             chatDiv.scrollTop = chatDiv.scrollHeight;
         }
       }
