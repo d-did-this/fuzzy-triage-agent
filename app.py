@@ -273,6 +273,10 @@ if "fullscreen" not in st.session_state:
     st.session_state.fullscreen = False
 if "preset_prompt" not in st.session_state:
     st.session_state.preset_prompt = None
+if "agent_chat_history" not in st.session_state:
+    st.session_state.agent_chat_history = [
+        {"role": "system", "content": "You are a proactive educational triage nurse and Hospital System Manager. You have the ability to adjust clinical thresholds based on external health alerts using your tools."}
+    ]
 if "chat_response" not in st.session_state:
     st.session_state.chat_response = None
 if "chat_id" not in st.session_state:
