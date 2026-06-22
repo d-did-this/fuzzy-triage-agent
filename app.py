@@ -263,6 +263,8 @@ if "score" not in st.session_state:
     st.session_state.score = None
 if "last_data" not in st.session_state:
     st.session_state.last_data = None
+if "lab_data" not in st.session_state:
+    st.session_state.lab_data = {}
 if "show_chat" not in st.session_state:
     st.session_state.show_chat = False
 if "show_admin" not in st.session_state:
@@ -363,7 +365,7 @@ if component_value:
             patient_name = component_value.get("name", "Patient")
             
             score = st.session_state.score if st.session_state.score is not None else -1
-            full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k not in ["action", "name", "prompt", "health_alert"]]) if st.session_state.last_data else "No lab data provided."
+            full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.lab_data.items()]) if st.session_state.get("lab_data") else "No lab data provided."
             
             system_context = f"System Context: You are a highly professional, empathetic triage nurse. The patient's name is {patient_name}. The patient's complete laboratory report is: [{full_lab_report}]. Their Risk Score is {score}. EXTERNAL HEALTH ALERT: {health_alert}.\nUser Question: "
             
@@ -431,6 +433,7 @@ if component_value:
             try:
                 # filter out 'action' and 'name'
                 lab_data = {k: v for k, v in component_value.items() if k not in ["action", "name", "run_id"]}
+                st.session_state.lab_data = lab_data
                 new_score = fuzzy_engine.assess_patient(lab_data)
                 st.session_state.score = new_score
                 
@@ -551,7 +554,7 @@ def chat_popup():
             else: current_tier = "Severe"
             
         patient_name = st.session_state.last_data.get("name", "Patient") if st.session_state.last_data else "Patient"
-        full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.last_data.items() if k not in ["action", "name"]]) if st.session_state.last_data else "No lab data provided."
+        full_lab_report = ", ".join([f"{k.upper()}: {v}" for k, v in st.session_state.lab_data.items()]) if st.session_state.get("lab_data") else "No lab data provided."
             
         current_health_alert = st.session_state.get("health_alert", "None")
         
